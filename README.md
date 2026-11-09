@@ -173,8 +173,8 @@ What it says:
   independently against the full cited passages it agreed on 23 (Cohen's kappa
   0.80): it rejected one sentence supported by a paraphrase and accepted one
   that garbled its passage. At this sample size the errors do not lean either
-  way. The second grader was a stronger model (recorded as `reference`), not a
-  person; the `human` column is left for a person's grading.
+  way. The second grader was a stronger model (Claude Opus 5.5, recorded as
+  `reference_by`), not a person: a check of the judge, not ground truth.
 - **Single runs are noisy.** At temperature 0, four answer runs gave key-fact
   recall 0.77, 0.80, 0.81 and 0.87: the prompt fence is random per request and
   llama.cpp batches slots, so the text changes. Retrieval was identical every

@@ -16,7 +16,7 @@ Writes to --out (default evals/results/):
   results.jsonl       one line per case: retrieval ranks, answer, verdicts
   passages.jsonl      the passages each answer was given (for --phase judge)
   report.md           means with bootstrap 95% intervals, failures listed
-  judge_sample.jsonl  a seeded sample of judged claims to grade by hand
+  judge_sample.jsonl  a seeded sample of judged claims, to grade independently
 """
 
 from __future__ import annotations
@@ -205,7 +205,7 @@ def judge_sample(results: list[dict], cases: dict[str, Case]) -> list[dict]:
                                if 1 <= n <= len(r["answer_sources"])],
              "cited_passages": [r["passages"][n - 1] for n in c["cites"]
                                 if 1 <= n <= len(r["passages"])],
-             "judge": c["supported"], "human": None}
+             "judge": c["supported"], "reference": None}
             for r, i, c in sorted(picked, key=lambda t: (t[0]["id"], t[1]))]
 
 

@@ -2,12 +2,12 @@
 """How far can the LLM judge be trusted? Compares its verdicts in
 judge_sample.jsonl with a second grader's labels.
 
-    python evals/agreement.py                    # against `human` if graded, else `reference`
-    python evals/agreement.py --label reference
+    python evals/agreement.py                 # judge vs the `reference` labels
+    python evals/agreement.py --label FIELD   # vs any other true/false field
 
-`human` is for a person to fill (true/false per claim, reading the cited
-passages); `reference` holds labels from a stronger model, kept separate
-so the two are never confused.
+`reference` holds independent labels (true/false per claim, graded on the
+cited passages as the judge saw them); `reference_by` records who graded.
+A second grader can add their own field and compare it the same way.
 """
 
 from __future__ import annotations
@@ -25,12 +25,11 @@ ROOT = Path(__file__).resolve().parent.parent
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--sample", default=str(ROOT / "evals" / "results" / "judge_sample.jsonl"))
-    ap.add_argument("--label", choices=("human", "reference"))
+    ap.add_argument("--label", default="reference")
     args = ap.parse_args()
     rows = [json.loads(line) for line in Path(args.sample).read_text().splitlines()]
-    label = args.label or ("human" if all(r.get("human") is not None for r in rows)
-                           else "reference")
-    pairs = [(r["judge"], r[label]) for r in rows
+    label = args.label
+    pairs = [(r["judge"], r.get(label)) for r in rows
              if r["judge"] is not None and r.get(label) is not None]
     if not pairs:
         print(f"no claims graded in `{label}`", file=sys.stderr)
