@@ -5,3 +5,10 @@ dist/
 build/
 .env
 evals/results/
+/data/
+.coverage
+.pytest_cache/
+.ruff_cache/
+CLAUDE.md
+TODO.md
+GEMINI.md
