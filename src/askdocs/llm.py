@@ -169,7 +169,11 @@ class ChatCompletionsLLM:
             except _Retry as e:
                 wait = e.wait if e.wait is not None else self._backoff * 2 ** attempt
             except httpx.ReadTimeout as e:
-                raise LLMError("LLM stalled: no data within the read timeout") from e
+                # Before any event, a stall may be one hung connection: retry.
+                # After one, retrying would duplicate text the client has.
+                if yielded or attempt == self._max_retries:
+                    raise LLMError("LLM stalled: no data within the read timeout") from e
+                wait = self._backoff * 2 ** attempt
             except (httpx.TransportError, httpx.DecodingError) as e:
                 if yielded or attempt == self._max_retries:
                     raise LLMError(f"LLM unreachable: {type(e).__name__}") from e

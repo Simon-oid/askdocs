@@ -97,21 +97,36 @@ async def test_busy_returns_503_and_slot_is_released(make_client):
     assert health["in_flight"] == 0
 
 
+def scope_for(query: bytes = b"", headers=()) -> dict:
+    return {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1", "method": "POST", "scheme": "http", "path": "/ask",
+            "raw_path": b"/ask", "root_path": "", "query_string": query,
+            "headers": [(b"content-type", b"application/json"), (b"host", b"test"),
+                        *headers],
+            "client": ("127.0.0.1", 1), "server": ("test", 80)}
+
+
+def receiver(chunks: list[bytes], disconnect: anyio.Event):
+    """ASGI receive: the body in `chunks`, then http.disconnect once set."""
+    pending = list(chunks)
+
+    async def receive():
+        if pending:
+            body = pending.pop(0)
+            return {"type": "http.request", "body": body, "more_body": bool(pending)}
+        # Like uvicorn: once disconnected, answer without awaiting, so a
+        # poll from an already-cancelled scope (is_disconnected) still sees it.
+        if not disconnect.is_set():
+            await disconnect.wait()
+        return {"type": "http.disconnect"}
+    return receive
+
+
 async def test_client_disconnect_stops_generation(make_client):
     llm = FakeLLM(pieces=["tok "] * 50, delay=0.01)
     app, _ = await make_client(llm=llm)
-    body = json.dumps({"question": "q"}).encode()
     sent: list[dict] = []
     disconnect = anyio.Event()
-    request_sent = False
-
-    async def receive():
-        nonlocal request_sent
-        if not request_sent:
-            request_sent = True
-            return {"type": "http.request", "body": body, "more_body": False}
-        await disconnect.wait()
-        return {"type": "http.disconnect"}
 
     async def send(msg):
         sent.append(msg)
@@ -119,14 +134,10 @@ async def test_client_disconnect_stops_generation(make_client):
         if tokens == 3:
             disconnect.set()
 
-    scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"},
-             "http_version": "1.1", "method": "POST", "scheme": "http", "path": "/ask",
-             "raw_path": b"/ask", "root_path": "", "query_string": b"",
-             "headers": [(b"content-type", b"application/json"), (b"host", b"test")],
-             "client": ("127.0.0.1", 1), "server": ("test", 80)}
     async with app.router.lifespan_context(app):
         with anyio.fail_after(5):
-            await app(scope, receive, send)
+            await app(scope_for(), receiver([json.dumps({"question": "q"}).encode()],
+                                            disconnect), send)
     assert llm.cancelled and not llm.finished
     tokens = sum(1 for m in sent if b"event: token" in m.get("body", b""))
     assert tokens < 10
@@ -139,3 +150,55 @@ def test_slots_release_is_idempotent():
     release()
     release()
     assert s.used == 0
+
+
+async def test_json_mode_client_disconnect_stops_generation(make_client):
+    llm = FakeLLM(pieces=["tok "] * 50, delay=0.02)
+    app, _ = await make_client(llm=llm)
+    disconnect = anyio.Event()
+    sent: list[dict] = []
+
+    async def send(msg):
+        sent.append(msg)
+
+    async def leave_soon():
+        await anyio.sleep(0.15)
+        disconnect.set()
+
+    async with app.router.lifespan_context(app):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(leave_soon)
+            with anyio.fail_after(5):
+                await app(scope_for(b"stream=false"),
+                          receiver([json.dumps({"question": "q"}).encode()], disconnect), send)
+    assert llm.cancelled and not llm.finished
+    assert sent[0]["status"] == 499
+
+
+async def body_status(app, chunks: list[bytes], headers=()) -> int:
+    sent: list[dict] = []
+
+    async def send(msg):
+        sent.append(msg)
+
+    async with app.router.lifespan_context(app):
+        with anyio.fail_after(5):
+            await app(scope_for(headers=headers), receiver(chunks, anyio.Event()), send)
+    return sent[0]["status"]
+
+
+async def test_oversized_body_is_413_by_content_length(make_client):
+    app, _ = await make_client()
+    assert await body_status(app, [b"{}"], headers=[(b"content-length", b"999999")]) == 413
+
+
+async def test_oversized_chunked_body_is_413_without_reading_it_all(make_client):
+    app, _ = await make_client()
+    piece = b"x" * 8192
+    assert await body_status(app, [b'{"question": "', piece, piece, piece, b'"}']) == 413
+
+
+async def test_body_under_the_limit_in_chunks_still_works(make_client):
+    app, _ = await make_client()
+    body = json.dumps({"question": "how is it sealed?"}).encode()
+    assert await body_status(app, [body[:5], body[5:]]) == 200

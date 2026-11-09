@@ -228,3 +228,32 @@ async def test_total_deadline_despite_keepalives():
     model = llm(lambda req: httpx.Response(200, text=body), total_timeout_s=-1)
     with pytest.raises(LLMError, match="exceeded"):
         await collect(model)
+
+
+async def test_stall_before_first_token_is_retried():
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        if len(calls) == 1:
+            raise httpx.ReadTimeout("stalled")
+        return httpx.Response(200, text=STREAM)
+
+    assert len(await collect(llm(handler))) == 4 and len(calls) == 2
+
+
+async def test_stall_after_first_token_is_not_retried():
+    calls = []
+
+    class Stalls(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield (chunk("partial") + "\n\n").encode()
+            raise httpx.ReadTimeout("stalled")
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(200, stream=Stalls())
+
+    with pytest.raises(LLMError, match="stalled"):
+        await collect(llm(handler))
+    assert len(calls) == 1

@@ -37,10 +37,14 @@ POST /ask ──► crag_search over MCP (stdio) ──► passages [1..k]
 - **Documents are data.** Sources and the question sit between per-request
   random fences that their text cannot close, so a document cannot forge a
   source header or an instruction.
-- **A client that disconnects stops the generation** (SSE): the upstream
-  stream is closed at once, and llama.cpp cancels the task (tested with a raw
-  ASGI disconnect, and checked against a real llama.cpp server). JSON mode
-  (`?stream=false`) runs to completion; it is for evals and scripts.
+- **A client that disconnects stops the generation**, in both modes: the
+  SSE stream is closed at once; a JSON request (`?stream=false`) polls for
+  the disconnect and cancels. Either way the upstream stream closes and
+  llama.cpp cancels the task (tested with raw ASGI disconnects, and checked
+  against a real llama.cpp server).
+- **Bounded input.** Request bodies over 16 KB get `413` before they are
+  read into memory, on Content-Length and on the bytes actually received
+  (chunked uploads); questions over 2000 characters get `422`.
 
 ## Quick start
 
@@ -85,7 +89,7 @@ data: {"answer": "...", "citations": [2, 3], "invalid_citations": [], "refused":
 |---|---|
 | `POST /ask` | body `{"question": str (1–2000 chars), "k": int 1–20 (optional)}`; SSE by default, JSON with `?stream=false` |
 | SSE events | `sources` → `token`* → `done`, or `error` `{stage: retrieval\|generation, message, partial?}` |
-| Errors | `422` bad input · `503` too many in flight · `502` (JSON mode) when a stage fails; details stay in the server log |
+| Errors | `413` body over 16 KB · `422` bad input · `503` too many in flight · `502` (JSON mode) when a stage fails; details stay in the server log |
 | `GET /healthz` | `{"status", "in_flight", "max_concurrent"}` |
 
 ## Configuration
