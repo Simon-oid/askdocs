@@ -48,6 +48,23 @@ POST /ask ──► crag_search over MCP (stdio) ──► passages [1..k]
 
 ## Quick start
 
+With Docker, one command. It pulls the models, builds cRAG and crag-mcp from
+source, builds the index, and serves the API on `127.0.0.1:8000`:
+
+```sh
+docker compose up -d                                         # CPU (slow: ~14 s an answer)
+RENDER_GID=$(getent group render | cut -d: -f3) \
+  docker compose -f compose.yaml -f compose.rocm.yaml up -d  # AMD GPU (~0.7 s)
+docker compose -f compose.yaml -f compose.cuda.yaml up -d    # NVIDIA GPU
+```
+
+The first start takes a few minutes, and later starts reuse the volumes.
+The ROCm image of llama.cpp is 22.9 GB. [`docs/deploy-aws.md`](docs/deploy-aws.md)
+runs the same stack on one EC2 GPU instance, reached through Session Manager
+with no open port.
+
+Without Docker:
+
 ```sh
 # 1. The models: an embedder in Ollama, an LLM in llama.cpp.
 ollama pull mxbai-embed-large
@@ -255,7 +272,7 @@ get 0.9.
 
 ## Planned
 
-- One-command start with Docker Compose; an AWS deploy guide.
+- A load test: latency and throughput under concurrent users.
 - `docs/architecture.md`: why retrieval goes through MCP, and what it costs
   in latency, measured.
 

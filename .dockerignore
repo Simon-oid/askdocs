@@ -1,0 +1,17 @@
+# Secrets, local state and anything the image does not run.
+.env
+.env.*
+data/
+.venv/
+.git/
+**/__pycache__/
+*.egg-info/
+.coverage
+.pytest_cache/
+.ruff_cache/
+CLAUDE.md
+TODO.md
+GEMINI.md
+evals/
+tests/
+docs/

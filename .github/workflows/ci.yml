@@ -24,3 +24,20 @@ jobs:
       - run: pytest -q --cov=askdocs --cov-report=term --cov-fail-under=80
       - name: eval gate (committed results fresh and above the floors)
         run: python evals/gate.py check
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: compose files are valid (CPU, ROCm, CUDA)
+        run: |
+          docker compose config -q
+          RENDER_GID=0 docker compose -f compose.yaml -f compose.rocm.yaml config -q
+          docker compose -f compose.yaml -f compose.cuda.yaml config -q
+      - name: image builds (cRAG + crag-mcp from source), binaries link, service starts
+        run: |
+          docker build -t askdocs:ci .
+          docker run --rm askdocs:ci sh -ec '
+            ! ldd /usr/local/bin/crag /usr/local/bin/crag-mcp | grep "not found"
+            askdocs --help >/dev/null
+            python -c "import askdocs.app, opentelemetry.sdk"'

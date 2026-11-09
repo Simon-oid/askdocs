@@ -1,0 +1,13 @@
+# NVIDIA GPU (CUDA) for the answering model; needs the NVIDIA Container
+# Toolkit on the host (preinstalled on the AWS Deep Learning AMIs):
+#
+#   docker compose -f compose.yaml -f compose.cuda.yaml up -d
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b11749
+    environment:
+      - LLAMA_ARG_N_GPU_LAYERS=99
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: all, capabilities: [gpu]}]

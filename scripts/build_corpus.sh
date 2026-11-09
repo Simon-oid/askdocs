@@ -6,6 +6,7 @@
 # checkable answers, which is what the eval set needs.
 #
 #   scripts/build_corpus.sh            # -> data/corpus/, data/docs.db
+#   ASKDOCS_DATA_DIR=/data scripts/build_corpus.sh   # elsewhere
 #
 # Needs: git, the `crag` CLI on PATH (or $CRAG), Ollama with the embedder.
 set -euo pipefail
@@ -16,7 +17,7 @@ EMBED_MODEL=${CRAG_EMBED_MODEL:-mxbai-embed-large}
 OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434/api/embeddings}
 CRAG=${CRAG:-crag}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-OUT=$ROOT/data
+OUT=${ASKDOCS_DATA_DIR:-$ROOT/data}     # /data in the container
 CACHE=$OUT/.src
 
 mkdir -p "$CACHE"

@@ -1,0 +1,90 @@
+# The whole stack in one command:
+#
+#   docker compose up -d                                        # CPU
+#   docker compose -f compose.yaml -f compose.rocm.yaml up -d   # AMD GPU
+#   docker compose -f compose.yaml -f compose.cuda.yaml up -d   # NVIDIA GPU
+#   ASKDOCS_OTEL_ENDPOINT=http://jaeger:4318 \
+#     docker compose --profile tracing up -d                    # + Jaeger UI on :16686
+#
+# The first start pulls the embedder and the answering model and builds the
+# index (a few minutes); later starts reuse the volumes. Only the API (and
+# Jaeger's UI) are published, on 127.0.0.1: askdocs has no authentication.
+
+name: askdocs
+
+x-images:
+  # Pinned: a model server that changes under you changes the eval numbers.
+  llama: &llama ghcr.io/ggml-org/llama.cpp:server-b11749
+  ollama: &ollama ollama/ollama:0.40.4
+
+services:
+  ollama:
+    image: *ollama
+    volumes: [ollama:/root/.ollama]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # One-shot: the embedding model, the same one the index is built with.
+  ollama-pull:
+    image: *ollama
+    environment: [OLLAMA_HOST=ollama:11434]
+    entrypoint: ["ollama", "pull", "${ASKDOCS_EMBED_MODEL:-mxbai-embed-large}"]
+    depends_on:
+      ollama: {condition: service_healthy}
+
+  # One-shot: builds the corpus and its index once, into the data volume.
+  index:
+    build: .
+    image: askdocs:local
+    environment:
+      - CRAG_EMBED_MODEL=${ASKDOCS_EMBED_MODEL:-mxbai-embed-large}
+      - OLLAMA_URL=http://ollama:11434/api/embeddings
+    command: ["sh", "-c", "test -s /data/docs.db && echo 'index present' || scripts/build_corpus.sh"]
+    volumes: [data:/data]
+    depends_on:
+      ollama-pull: {condition: service_completed_successfully}
+
+  llm:
+    image: *llama
+    # -hf downloads the GGUF once into the models volume.
+    command: ["-hf", "${ASKDOCS_LLM_HF:-Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M}",
+              "--host", "0.0.0.0", "--port", "8081", "-c", "8192"]
+    environment: [LLAMA_CACHE=/models]
+    volumes: [models:/models]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8081/health"]
+      interval: 10s
+      retries: 60            # the first start downloads ~2 GB
+      start_period: 30s
+    restart: unless-stopped
+
+  askdocs:
+    image: askdocs:local
+    environment:
+      - ASKDOCS_LLM_BASE_URL=http://llm:8081/v1
+      - ASKDOCS_EMBED_URL=http://ollama:11434/api/embeddings
+      - ASKDOCS_EMBED_MODEL=${ASKDOCS_EMBED_MODEL:-mxbai-embed-large}
+      - ASKDOCS_MAX_CONCURRENT=${ASKDOCS_MAX_CONCURRENT:-4}
+      # Empty: tracing off.
+      - ASKDOCS_OTEL_ENDPOINT=${ASKDOCS_OTEL_ENDPOINT:-}
+    # Not :ro, although the service only reads: crag-mcp opens the index in
+    # SQLite WAL mode, which must create docs.db-shm next to it.
+    volumes: [data:/data]
+    ports: ["127.0.0.1:${ASKDOCS_PORT:-8000}:8000"]
+    depends_on:
+      index: {condition: service_completed_successfully}
+      llm: {condition: service_healthy}
+    restart: unless-stopped
+
+  jaeger:
+    profiles: [tracing]
+    image: jaegertracing/jaeger:2.11.0
+    ports: ["127.0.0.1:16686:16686"]
+
+volumes:
+  ollama:
+  models:
+  data:

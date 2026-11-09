@@ -1,0 +1,14 @@
+# AMD GPU (ROCm) for the answering model:
+#
+#   RENDER_GID=$(getent group render | cut -d: -f3) \
+#     docker compose -f compose.yaml -f compose.rocm.yaml up -d
+#
+# The container's users and groups are not the host's: the render group
+# that owns /dev/kfd and /dev/dri is passed by its numeric host id.
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server-rocm-b11749
+    devices: [/dev/kfd, /dev/dri]
+    group_add: ["${RENDER_GID:?set RENDER_GID to the host render group id}"]
+    environment:
+      - LLAMA_ARG_N_GPU_LAYERS=99
