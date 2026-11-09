@@ -154,6 +154,7 @@ answering, top-k 5; bootstrap 95% intervals over cases):
 | Metric | Mean [95% CI] | n |
 |---|---|---|
 | Retrieval recall@1 / @3 / @5 | 0.61 / 0.94 / 0.99 | 35 |
+| Context recall (right file among the 5 passages the model got) | 0.94 [0.87, 1.00] | 35 |
 | Key-fact recall | 0.87 [0.76, 0.96] | 35 |
 | ... factual / multi-source | 0.92 / 0.60 [0.30, 0.90] | 30 / 5 |
 | Wrong refusals | 0.03 [0.00, 0.09] | 35 |
@@ -183,9 +184,47 @@ What it says:
   are JSON-RPC `-32602`, a dogfood report says they are `isError: true`. Case
   `f16` follows the README.
 
+### The gate
+
+```sh
+python evals/gate.py check                    # what CI runs
+python evals/gate.py compare evals/results NEW_RUN_DIR
+python evals/gate.py noise RUN_DIR RUN_DIR ... --write
+```
+
+CI has no GPU and no models, so it cannot rerun the eval. It checks the
+committed results instead: they must cover exactly the current
+`cases.jsonl` (a case added or edited without a rerun fails) and clear the
+floors in [`evals/gate.json`](evals/gate.json).
+
+The regression test runs where the models are. It pairs the two runs case by
+case and calls a drop a regression only if **both**
+
+1. the paired bootstrap interval of (new − base) excludes zero, and
+2. the drop is larger than the **run-to-run noise**: the largest gap between
+   any two runs of the same code (4 runs: key facts 0.10, wrong refusals 0.06,
+   faithfulness 0.05, retrieval 0).
+
+The second condition is not decoration. Comparing the baseline with a rerun of
+the *same code*, the paired test alone flagged a key-fact "regression" of −0.10
+with an interval of [−0.20, −0.01]. Run noise is not case-sampling noise, and
+a bootstrap over cases does not see it.
+
+And it catches a real one: the same eval with `ASKDOCS_TOP_K=1` (the model
+sees one passage instead of five) is flagged on context recall −0.33, key facts
+−0.27, wrong refusals +0.31 and out-of-range citations +0.24, and fails the
+floors. Retrieval recall@k does not move in that run, because it measures the
+retriever at k=10, not what reached the model; that is why context recall
+exists.
+
+Floors: each is the baseline's 95% interval bound moved by the noise, rounded
+outward to 0.05, so the committed baseline passes and a run as bad as the
+noisy end of the baseline still does. One exception, recorded in the file:
+correct refusals (n=10, never failed) would get a degenerate floor of 1.0 and
+get 0.9.
+
 ## Planned
 
-- A CI gate on the eval scores that accounts for run-to-run noise.
 - Tracing (OpenTelemetry), P50/P95 latency, tokens per answer.
 - One-command start with Docker Compose; an AWS deploy guide.
 - `docs/architecture.md`: why retrieval goes through MCP, and what it costs

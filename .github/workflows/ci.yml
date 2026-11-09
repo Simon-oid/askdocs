@@ -20,5 +20,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -e '.[dev]'
-      - run: ruff check src tests
+      - run: ruff check src tests evals
       - run: pytest -q --cov=askdocs --cov-report=term --cov-fail-under=80
+      - name: eval gate (committed results fresh and above the floors)
+        run: python evals/gate.py check

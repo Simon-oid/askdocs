@@ -10,6 +10,7 @@ Means with bootstrap 95% intervals (10,000 resamples of the cases, seed 20261109
 | Retrieval recall@3 (answerable) | 0.94 [0.87, 1.00] | 35 |
 | Retrieval recall@5 (answerable) | 0.99 [0.96, 1.00] | 35 |
 | Retrieval recall@10 (answerable) | 0.99 [0.96, 1.00] | 35 |
+| Context recall: right file among the passages the model got | 0.94 [0.87, 1.00] | 35 |
 | Key-fact recall (answerable; refusal = 0) | 0.87 [0.76, 0.96] | 35 |
 | Wrong refusal (answerable) | 0.03 [0.00, 0.09] | 35 |
 | Correct refusal (unanswerable + off-topic) | 1.00 [1.00, 1.00] | 10 |

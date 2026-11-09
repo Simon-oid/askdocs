@@ -1,0 +1,48 @@
+{
+  "floors_rule": "baseline 95% CI bound (lower for higher-is-better, upper otherwise) moved by the run-to-run noise, rounded outward to 0.05",
+  "floors": {
+    "recall@1": {
+      "min": 0.45
+    },
+    "recall@5": {
+      "min": 0.95
+    },
+    "context_recall": {
+      "min": 0.85
+    },
+    "key_facts": {
+      "min": 0.65
+    },
+    "wrong_refusal": {
+      "max": 0.15
+    },
+    "correct_refusal": {
+      "min": 0.9
+    },
+    "faithfulness": {
+      "min": 0.35
+    },
+    "bad_citation": {
+      "max": 0.05
+    },
+    "error": {
+      "max": 0.0
+    }
+  },
+  "noise_rule": "largest |mean paired difference| between any two runs of the same code; a drop counts as a regression only beyond it",
+  "noise": {
+    "recall@1": 0.0,
+    "recall@5": 0.0,
+    "context_recall": 0.0,
+    "key_facts": 0.1,
+    "wrong_refusal": 0.0571,
+    "correct_refusal": 0.0,
+    "faithfulness": 0.053,
+    "bad_citation": 0.0222,
+    "error": 0.0
+  },
+  "noise_runs": 4,
+  "floors_exceptions": {
+    "correct_refusal": "n=10 with no failure observed: the bootstrap interval is degenerate ([1, 1]), so the rule would allow no slip at all; one is allowed"
+  }
+}

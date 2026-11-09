@@ -44,6 +44,7 @@ from askdocs.evaluation import (
     refusal_ok,
     source_recall,
 )
+from askdocs.gate import faithfulness
 from askdocs.judge import judge_claim
 from askdocs.llm import ChatCompletionsLLM, make_llm
 from askdocs.pipeline import answer
@@ -77,6 +78,8 @@ async def run_case(case: Case, retriever, llm, s: Settings) -> dict:
         elif name == "error":
             error = data
     out["answer_sources"] = [p["source"] for p in passages]
+    # What reached the model, as opposed to what the retriever can find at k=10.
+    out["context_recall"] = source_recall(case, out["answer_sources"], len(passages))
     # What the model saw: the prompt truncates each passage.
     out["passages"] = [p["text"][:MAX_PASSAGE_CHARS] for p in passages]
     if done is None:
@@ -103,11 +106,6 @@ async def judge_results(results: list[dict], judge: ChatCompletionsLLM) -> None:
         await judge.aclose()
 
 
-def faithfulness(r: dict) -> float | None:
-    known = [c["supported"] for c in r.get("claims", []) if c["supported"] is not None]
-    return sum(known) / len(known) if known else None
-
-
 def pct(xs: list[float]) -> str:
     if not xs:
         return "n/a | 0"
@@ -126,6 +124,8 @@ def summary_rows(results: list[dict]) -> list[str]:
     neg = [r for r in ok if r["type"] in ("unanswerable", "offtopic")]
     rows = [f"| Retrieval recall@{k} (answerable) | {pct([r['recall'][str(k)] for r in ans])} |"
             for k in RECALL_KS]
+    rows.append("| Context recall: right file among the passages the model got | "
+                f"{pct([r['context_recall'] for r in ans])} |")
     rows += [
         f"| Key-fact recall (answerable; refusal = 0) | {pct([r['fact_recall'] for r in ans])} |",
         f"| Wrong refusal (answerable) | {pct([float(r['refused']) for r in ans])} |",
