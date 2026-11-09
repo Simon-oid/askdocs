@@ -169,11 +169,12 @@ What it says:
   verdicts: citing a neighbouring passage instead of the one holding the fact,
   and copying a passage as a list with no citations at all. The answer is often
   right and badly attributed.
-- **The judge errs on the strict side.** On a 25-sentence sample graded
-  independently it agreed on 23 (Cohen's kappa 0.78); both disagreements were
-  supported sentences it rejected, none the other way. Faithfulness is
-  therefore closer to a lower bound. That second grader was a stronger model,
-  recorded as `reference`; the `human` column is still to be filled by a person.
+- **The judge is usable, not perfect.** On a 25-sentence sample graded
+  independently against the full cited passages it agreed on 23 (Cohen's kappa
+  0.80): it rejected one sentence supported by a paraphrase and accepted one
+  that garbled its passage. At this sample size the errors do not lean either
+  way. The second grader was a stronger model (recorded as `reference`), not a
+  person; the `human` column is left for a person's grading.
 - **Single runs are noisy.** At temperature 0, four answer runs gave key-fact
   recall 0.77, 0.80, 0.81 and 0.87: the prompt fence is random per request and
   llama.cpp batches slots, so the text changes. Retrieval was identical every
