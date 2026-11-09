@@ -6,9 +6,15 @@ FastAPI with streamed answers (SSE), retrieval through an MCP server
 [cRAG](https://github.com/Simon-oid/cRAG)), a local LLM served by llama.cpp,
 and an evaluation that blocks regressions in CI.
 
-Status: the service works end to end (phase 1 of P3 in a four-project
-portfolio); evaluation, CI gate, tracing and deployment come next. Every
-number in this README will come from a script, with hardware and date.
+Status: complete. The service, a 45-case evaluation with a CI gate,
+OpenTelemetry tracing, a one-command Docker Compose stack, a load test and
+an AWS guide (prepared, not yet run on AWS). Every number here comes from a
+script, with its hardware and date.
+
+[`docs/architecture.md`](docs/architecture.md) explains the design: why
+retrieval goes through MCP (measured: about 0.4 ms per question, below the
+noise against an in-process call), and why the service refuses with 503
+instead of queueing.
 
 ## How an answer is made
 
@@ -290,11 +296,6 @@ limit of 4 on 4 llama.cpp slots ([`docs/load-test.md`](docs/load-test.md)):
 - **The limit must equal the slots.** With a limit of 8 on 4 slots,
   throughput stayed the same and time to first token went from 0.5 s to
   2.6 s, as the extra answers queued unseen inside llama.cpp.
-
-## Planned
-
-- `docs/architecture.md`: why retrieval goes through MCP, and what it costs
-  in latency, measured.
 
 ## License
 
