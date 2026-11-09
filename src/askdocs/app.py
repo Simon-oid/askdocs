@@ -1,4 +1,5 @@
-"""HTTP layer: POST /ask (SSE stream, or JSON with ?stream=false), GET /healthz."""
+"""HTTP layer: POST /ask (SSE stream, or JSON with ?stream=false), GET /healthz,
+GET /stats (P50/P95 per stage over the last answers)."""
 
 from __future__ import annotations
 
@@ -10,12 +11,16 @@ from contextlib import aclosing, asynccontextmanager
 import anyio
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from opentelemetry import context as otel_context
+from opentelemetry import propagate, trace
+from opentelemetry.context import Context
 from pydantic import BaseModel, Field, field_validator
 
 from .config import Settings
 from .llm import LLM, make_llm
 from .pipeline import PipelineEvent, answer
 from .retrieval import McpRetriever, Retriever
+from .telemetry import Stats
 
 log = logging.getLogger("askdocs")
 
@@ -139,6 +144,19 @@ def public(event: str, data: dict) -> dict:
     return data
 
 
+def parent_context(request: Request) -> Context:
+    """Where an answer's trace hangs. FastAPI's own telemetry opens a server
+    span per request (open until the last body chunk) and makes spans
+    current in the handler, so the answer joins the request's trace.
+    Without it (telemetry off, an older FastAPI) the caller's W3C
+    traceparent header is the parent. Taken in the handler: the streaming
+    body runs later, outside this call."""
+    current = otel_context.get_current()
+    if trace.get_current_span(current).get_span_context().is_valid:
+        return current
+    return propagate.extract(request.headers)
+
+
 def create_app(settings: Settings | None = None, *, retriever: Retriever | None = None,
                llm: LLM | None = None) -> FastAPI:
     """Production wiring by default; tests inject a retriever and an LLM."""
@@ -163,21 +181,30 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
     app = FastAPI(title="askdocs", version="0.1.0", lifespan=lifespan)
     app.add_middleware(BodyLimit)
     slots = Slots(s.max_concurrent)
+    app.state.stats = stats = Stats()
 
-    def events(question: str, k: int) -> AsyncIterator[PipelineEvent]:
-        return answer(question, app.state.retriever, app.state.llm, k=k,
-                      max_tokens=s.llm_max_tokens)
+    async def events(question: str, k: int, parent: Context) -> AsyncIterator[PipelineEvent]:
+        async with aclosing(answer(question, app.state.retriever, app.state.llm, k=k,
+                                   max_tokens=s.llm_max_tokens, prices=s.prices(),
+                                   parent=parent)) as evs:
+            async for name, data in evs:
+                stats.record(name, data)
+                yield name, data
 
-    async def stream(question: str, k: int) -> AsyncIterator[str]:
+    async def stream(question: str, k: int, parent: Context) -> AsyncIterator[str]:
         # aclosing: on client disconnect the pipeline is closed right away,
         # which closes the upstream HTTP stream and stops the generation.
-        async with aclosing(events(question, k)) as evs:
+        async with aclosing(events(question, k, parent)) as evs:
             async for name, data in evs:
                 yield sse(name, public(name, data))
 
     @app.get("/healthz")
     async def healthz() -> dict:
         return {"status": "ok", "in_flight": slots.used, "max_concurrent": slots.n}
+
+    @app.get("/stats")
+    async def get_stats() -> dict:
+        return stats.snapshot()
 
     @app.post("/ask")
     async def ask(req: AskRequest, request: Request,
@@ -186,12 +213,13 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
         if release is None:
             raise HTTPException(503, "too many answers in flight", headers={"Retry-After": "1"})
         k = req.k or s.top_k
+        parent = parent_context(request)
         try:
             if stream_:
                 return SlotStreamingResponse(
-                    stream(req.question, k), release, media_type="text/event-stream",
+                    stream(req.question, k, parent), release, media_type="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-            return await collect_unless_gone(events(req.question, k), request)
+            return await collect_unless_gone(events(req.question, k, parent), request)
         except BaseException:
             release()
             raise

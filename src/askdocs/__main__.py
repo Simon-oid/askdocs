@@ -16,7 +16,16 @@ def main() -> None:
     import uvicorn
 
     from .app import create_app
-    uvicorn.run(create_app(), host=args.host, port=args.port)
+    from .config import Settings
+    from .telemetry import setup_tracing
+
+    s = Settings()
+    shutdown = setup_tracing(s.otel_endpoint, s.otel_service_name)
+    try:
+        uvicorn.run(create_app(s), host=args.host, port=args.port)
+    finally:
+        if shutdown:
+            shutdown()          # flush the spans still buffered
 
 
 if __name__ == "__main__":

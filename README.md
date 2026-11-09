@@ -81,7 +81,8 @@ data: {"answer": "...", "citations": [2, 3], "invalid_citations": [], "refused":
 ```
 
 `POST /ask?stream=false` returns the same as one JSON envelope
-(`{"success", "data", "error"}`); `GET /healthz` reports load.
+(`{"success", "data", "error"}`); `GET /healthz` reports load. `done` and
+`error` also carry `trace_id`, and `done` carries `cost_usd`.
 
 ## API
 
@@ -91,6 +92,7 @@ data: {"answer": "...", "citations": [2, 3], "invalid_citations": [], "refused":
 | SSE events | `sources` → `token`* → `done`, or `error` `{stage: retrieval\|generation, message, partial?}` |
 | Errors | `413` body over 16 KB · `422` bad input · `503` too many in flight · `502` (JSON mode) when a stage fails; details stay in the server log |
 | `GET /healthz` | `{"status", "in_flight", "max_concurrent"}` |
+| `GET /stats` | answers, refusals, errors by stage, and P50/P95 of each stage, tokens and cost over the last 1000 answers |
 
 ## Configuration
 
@@ -107,6 +109,34 @@ where every limit carries its reason.
 | `MCP_COMMAND`, `MCP_DB` | `crag-mcp`, `data/docs.db` | the MCP server and its index |
 | `EMBED_MODEL`, `EMBED_URL` | `mxbai-embed-large`, Ollama | must match the model the index was built with |
 | `TOP_K`, `MAX_CONCURRENT` | `5`, `4` | |
+| `LLM_PRICE_INPUT_PER_MTOK`, `LLM_PRICE_OUTPUT_PER_MTOK` | `0`, `0` | USD per million tokens, for `cost_usd`; 0 for a local model |
+| `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME` | unset, `askdocs` | OTLP/HTTP collector, e.g. `http://localhost:4318`; needs `pip install '.[otel]'` |
+
+## Observability
+
+Each answer is one OpenTelemetry trace: `askdocs.answer` with `retrieval`
+(and the MCP SDK's `crag_search` call under it) and `generation` (tokens,
+finish reason, a `first_token` event), under FastAPI's own `POST /ask`
+span. Off by default; with no endpoint set the API is a no-op.
+
+Measured over the 45 eval questions, one at a time (P50 / P95):
+
+| Stage | ms |
+|---|---|
+| retrieval (MCP round trip, embedding included) | 14 / 18 |
+| time to first token | 449 / 567 |
+| answer, end to end | 683 / 1152 |
+
+| Per answer | P50 / P95 |
+|---|---|
+| prompt tokens | 2009 / 2492 |
+| completion tokens | 33 / 89 |
+
+Generation is about 97% of an answer, and the prompt is about 60 times the
+answer, so with a hosted model `top_k` drives the cost. Tracing adds about
+94 µs per answer. [`docs/observability.md`](docs/observability.md) has the
+trace tree, why the spans are not made "current" across the token stream,
+the cold-start finding, and how the numbers were measured.
 
 ## Tests
 
@@ -225,7 +255,6 @@ get 0.9.
 
 ## Planned
 
-- Tracing (OpenTelemetry), P50/P95 latency, tokens per answer.
 - One-command start with Docker Compose; an AWS deploy guide.
 - `docs/architecture.md`: why retrieval goes through MCP, and what it costs
   in latency, measured.

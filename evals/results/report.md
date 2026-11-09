@@ -21,11 +21,24 @@ Means with bootstrap 95% intervals (10,000 resamples of the cases, seed 20261109
 
 ## Latency (informational: one client, sequential)
 
+Nearest-rank percentiles. ttft and generation exist only for answers that
+called the model (not for refusals with no passages).
+
 | Stage | P50 ms | P95 ms | n |
 |---|---|---|---|
 | retrieval_ms | 16 | 18 | 45 |
 | ttft_ms | 450 | 562 | 43 |
+| generation_ms | 676 | 1187 | 43 |
 | total_ms | 686 | 1203 | 45 |
+
+## Tokens and cost per answer
+
+| Per answer | P50 | P95 | n |
+|---|---|---|---|
+| prompt_tokens | 2009 | 2492 | 43 |
+| completion_tokens | 33 | 89 | 43 |
+
+No token prices set (ASKDOCS_LLM_PRICE_*_PER_MTOK): a local model's cost per answer is GPU time, the generation_ms above.
 
 ## Cases that missed something
 

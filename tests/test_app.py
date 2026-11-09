@@ -63,7 +63,7 @@ async def test_upstream_error_hides_details(make_client):
         s = await client.post("/ask", json={"question": "q"})
     assert r.status_code == 502 and r.json()["error"]["message"] == "retrieval is unavailable"
     assert "/secret" not in r.text and "/secret" not in s.text
-    assert parse_sse(s.text) == [("error", {"stage": "retrieval",
+    assert parse_sse(s.text) == [("error", {"stage": "retrieval", "trace_id": None,
                                             "message": "retrieval is unavailable"})]
 
 

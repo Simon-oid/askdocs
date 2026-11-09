@@ -5,6 +5,7 @@
     python evals/run.py --only f01,u03      # a few cases
     python evals/run.py --phase answer      # answers only (judge model not needed)
     python evals/run.py --phase judge       # then grade that saved run
+    python evals/run.py --phase report      # rewrite report.md from the saved run
 
 Needs what the service needs (crag-mcp, the embedder, the answering model,
 settings from .env / ASKDOCS_*), plus a judge model behind an
@@ -50,6 +51,7 @@ from askdocs.llm import ChatCompletionsLLM, make_llm
 from askdocs.pipeline import answer
 from askdocs.prompt import MAX_PASSAGE_CHARS
 from askdocs.retrieval import McpRetriever
+from askdocs.telemetry import FREE, STAGES, TOKENS, Prices, cost_usd, percentile
 
 ROOT = Path(__file__).resolve().parent.parent
 RECALL_KS = (1, 3, 5, 10)
@@ -113,11 +115,6 @@ def pct(xs: list[float]) -> str:
     return f"{m:.2f} [{lo:.2f}, {hi:.2f}] | {len(xs)}"
 
 
-def percentile(xs: list[float], p: float) -> float:
-    xs = sorted(xs)
-    return xs[min(len(xs) - 1, round(p / 100 * (len(xs) - 1)))]
-
-
 def summary_rows(results: list[dict]) -> list[str]:
     ok = [r for r in results if "error" not in r]
     ans = [r for r in ok if r["type"] in ("factual", "multi")]
@@ -142,13 +139,32 @@ def summary_rows(results: list[dict]) -> list[str]:
     return rows
 
 
+def p50_p95(name: str, xs: list[float], fmt: str = ".0f") -> str:
+    return (f"| {name} | {percentile(xs, 50):{fmt}} | {percentile(xs, 95):{fmt}} "
+            f"| {len(xs)} |")
+
+
 def latency_rows(results: list[dict]) -> list[str]:
     rows = []
-    for key in ("retrieval_ms", "ttft_ms", "total_ms"):
+    for key in STAGES:
         xs = [r["timings"][key] for r in results if key in r.get("timings", {})]
         if xs:
-            rows.append(f"| {key} | {percentile(xs, 50):.0f} | {percentile(xs, 95):.0f} "
-                        f"| {len(xs)} |")
+            rows.append(p50_p95(key, xs))
+    return rows
+
+
+def usage_rows(results: list[dict], prices: Prices) -> list[str]:
+    """Tokens and cost per answer, over the answers that called the model."""
+    used = [r["usage"] for r in results if r.get("usage")]
+    if not used:
+        return []
+    rows = [p50_p95(key, [u[key] for u in used]) for key in TOKENS]
+    if prices == FREE:
+        return [*rows, "", "No token prices set (ASKDOCS_LLM_PRICE_*_PER_MTOK): a local "
+                "model's cost per answer is GPU time, the generation_ms above."]
+    costs = [cost_usd(u, prices) for u in used]
+    rows.append(p50_p95(f"cost_usd at ${prices.input_per_mtok:g} in / "
+                        f"${prices.output_per_mtok:g} out per Mtok", costs, ".6f"))
     return rows
 
 
@@ -182,13 +198,17 @@ def environment(s: Settings, judge_model: str | None) -> str:
             f"run {time.strftime('%Y-%m-%d %H:%M')}.")
 
 
-def write_report(path: Path, results: list[dict], env: str) -> None:
+def write_report(path: Path, results: list[dict], env: str, prices: Prices) -> None:
     lines = [
         "# askdocs eval report", "", env, "",
         "Means with bootstrap 95% intervals (10,000 resamples of the cases, seed 20261109).",
         "", "| Metric | Mean [95% CI] | n |", "|---|---|---|", *summary_rows(results), "",
         "## Latency (informational: one client, sequential)", "",
+        "Nearest-rank percentiles. ttft and generation exist only for answers that",
+        "called the model (not for refusals with no passages).", "",
         "| Stage | P50 ms | P95 ms | n |", "|---|---|---|---|", *latency_rows(results), "",
+        "## Tokens and cost per answer", "",
+        "| Per answer | P50 | P95 | n |", "|---|---|---|---|", *usage_rows(results, prices), "",
         "## Cases that missed something", "", *failures(results), "",
     ]
     path.write_text("\n".join(lines))
@@ -242,9 +262,10 @@ def load_results(out: Path) -> list[dict]:
     return [{**r, "passages": texts[r["id"]]} for r in rows("results.jsonl")]
 
 
-def write_outputs(out: Path, env: str, cases: list[Case], results: list[dict]) -> None:
+def write_outputs(out: Path, env: str, cases: list[Case], results: list[dict],
+                  prices: Prices) -> None:
     save_results(out, results)
-    write_report(out / "report.md", results, env)
+    write_report(out / "report.md", results, env, prices)
     sample = judge_sample(results, {c.id: c for c in cases})
     (out / "judge_sample.jsonl").write_text("".join(json.dumps(x) + "\n" for x in sample))
     print((out / "report.md").read_text())
@@ -255,9 +276,10 @@ def main() -> int:
     ap.add_argument("--cases", default=str(ROOT / "evals" / "cases.jsonl"))
     ap.add_argument("--out", default=str(ROOT / "evals" / "results"))
     ap.add_argument("--only", help="comma-separated case ids")
-    ap.add_argument("--phase", choices=("all", "answer", "judge"), default="all",
+    ap.add_argument("--phase", choices=("all", "answer", "judge", "report"), default="all",
                     help="answer: no judge needed; judge: grade a saved answer run "
-                         "(lets one GPU/RAM budget hold one model at a time)")
+                         "(lets one GPU/RAM budget hold one model at a time); "
+                         "report: rewrite report.md from the saved run, no models")
     ap.add_argument("--judge-url", default="http://localhost:8082/v1")
     ap.add_argument("--judge-model", default="qwen2.5-7b-instruct-q4_k_m")
     args = ap.parse_args()
@@ -268,6 +290,14 @@ def main() -> int:
     if args.only:
         wanted = set(args.only.split(","))
         cases = [c for c in cases if c.id in wanted]
+    if args.phase == "report":
+        # Keep the environment line of the run that produced the results:
+        # the current commit did not produce them.
+        env = (out / "report.md").read_text().splitlines()[2]
+        rows = [json.loads(x) for x in (out / "results.jsonl").read_text().splitlines()]
+        write_report(out / "report.md", rows, env, s.prices())    # passages not needed
+        print((out / "report.md").read_text())
+        return 0
     if args.phase == "judge":
         results = load_results(out)
         cases = [c for c in cases if c.id in {r["id"] for r in results}]
@@ -276,7 +306,7 @@ def main() -> int:
     if args.phase != "answer":
         asyncio.run(judge_results(results, judge_llm(args.judge_url, args.judge_model)))
     judged = args.judge_model if args.phase != "answer" else None
-    write_outputs(out, environment(s, judged), cases, results)
+    write_outputs(out, environment(s, judged), cases, results, s.prices())
     return 0
 
 

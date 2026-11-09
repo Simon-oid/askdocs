@@ -10,6 +10,8 @@ from typing import Literal
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .telemetry import Prices
+
 PROVIDER_BASE_URL = {
     "llamacpp": "http://localhost:8081/v1",
     "openai": "https://api.openai.com/v1",
@@ -38,6 +40,10 @@ class Settings(BaseSettings):
     # that a retry would duplicate text the client has already shown.
     llm_max_retries: int = Field(2, ge=0, le=5)
     llm_retry_backoff_s: float = 0.5
+    # USD per million tokens, for cost per answer. 0 for a local model,
+    # whose cost is GPU time; set them to the provider's list prices.
+    llm_price_input_per_mtok: float = Field(0.0, ge=0.0)
+    llm_price_output_per_mtok: float = Field(0.0, ge=0.0)
 
     # --- Retrieval (crag-mcp over stdio) -----------------------------------
     mcp_command: str = "crag-mcp"
@@ -57,8 +63,17 @@ class Settings(BaseSettings):
     # requests are refused with 503 rather than queued without bound.
     max_concurrent: int = Field(4, ge=1, le=256)
 
+    # --- Observability ---------------------------------------------------
+    # OTLP/HTTP collector base URL (Jaeger, Tempo, OTel Collector), e.g.
+    # http://localhost:4318. Unset: no tracing, and the SDK is not needed.
+    otel_endpoint: str | None = None
+    otel_service_name: str = "askdocs"
+
     def llm_key(self) -> str | None:
         return self.llm_api_key.get_secret_value() if self.llm_api_key else None
+
+    def prices(self) -> Prices:
+        return Prices(self.llm_price_input_per_mtok, self.llm_price_output_per_mtok)
 
     def base_url(self) -> str:
         return self.llm_base_url or PROVIDER_BASE_URL[self.llm_provider]

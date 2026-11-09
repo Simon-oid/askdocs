@@ -120,6 +120,10 @@ class ChatCompletionsLLM:
         self._max_retries, self._backoff = max_retries, retry_backoff_s
         self._total_s = total_timeout_s
 
+    @property
+    def model(self) -> str:
+        return self._model
+
     async def aclose(self) -> None:
         await self._client.aclose()
 

@@ -77,7 +77,7 @@ async def test_fabricated_citation_is_reported():
 
 async def test_retrieval_error_event():
     events = await run(FakeRetriever(error="down"), FakeLLM())
-    assert events == [("error", {"stage": "retrieval", "message": "down"})]
+    assert events == [("error", {"stage": "retrieval", "message": "down", "trace_id": None})]
 
 
 async def test_generation_error_keeps_partial_text():
