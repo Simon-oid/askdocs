@@ -119,12 +119,72 @@ The retriever is tested against a stand-in MCP server
 ([`tests/fake_crag_mcp.py`](tests/fake_crag_mcp.py)) spoken to over real
 stdio, including a crash mid-session and the reconnect after it.
 
+## Evaluation
+
+[`evals/cases.jsonl`](evals/cases.jsonl) holds 45 labelled questions about
+the demo corpus: 30 factual, 5 that need two sources, 6 in the corpus's
+domain that it does not answer, 4 off-topic. Each answerable case lists the
+files the answer lives in and the key facts it must contain.
+
+```sh
+python evals/run.py --phase answer    # answering model running (llama.cpp :8081)
+python evals/run.py --phase judge     # then the judge model (:8082) grades that run
+python evals/agreement.py             # judge vs a second grader on a sample
+```
+
+Two phases because 16 GB of RAM did not hold both models plus a desktop (the
+kernel OOM-killed the answering model); one process can do both with
+`--phase all`.
+
+What is measured, and why apart:
+
+- **Retrieval recall@k**: is the right file among the passages? Scored without
+  the model, so a retrieval miss is not blamed on generation.
+- **Key-fact recall**: does the answer contain the labelled facts? A refusal of
+  an answerable question scores 0.
+- **Refusals**: right for the 10 unanswerable/off-topic cases, wrong for the 35
+  others.
+- **Faithfulness**: the answer is split into sentences; for each, a judge model
+  (Qwen2.5-7B, not the 3B that wrote the answer) is asked one yes/no question per
+  cited passage. An uncited sentence is unsupported.
+
+Baseline ([`evals/results/report.md`](evals/results/report.md); Qwen2.5-3B
+answering, top-k 5; bootstrap 95% intervals over cases):
+
+| Metric | Mean [95% CI] | n |
+|---|---|---|
+| Retrieval recall@1 / @3 / @5 | 0.61 / 0.94 / 0.99 | 35 |
+| Key-fact recall | 0.87 [0.76, 0.96] | 35 |
+| ... factual / multi-source | 0.92 / 0.60 [0.30, 0.90] | 30 / 5 |
+| Wrong refusals | 0.03 [0.00, 0.09] | 35 |
+| Correct refusals (unanswerable + off-topic) | 1.00 | 10 |
+| Faithfulness (judged sentences supported) | 0.60 [0.45, 0.75] | 34 |
+
+What it says:
+
+- **Retrieval is not the bottleneck.** The right file is in the top 5 for 34
+  of 35 questions, but first only 61% of the time, so the prompt has to make the
+  model read past source [1].
+- **Faithfulness is the weak point.** The two failure modes found reading the
+  verdicts: citing a neighbouring passage instead of the one holding the fact,
+  and copying a passage as a list with no citations at all. The answer is often
+  right and badly attributed.
+- **The judge errs on the strict side.** On a 25-sentence sample graded
+  independently it agreed on 23 (Cohen's kappa 0.78); both disagreements were
+  supported sentences it rejected, none the other way. Faithfulness is
+  therefore closer to a lower bound. That second grader was a stronger model,
+  recorded as `reference`; the `human` column is still to be filled by a person.
+- **Single runs are noisy.** At temperature 0, four answer runs gave key-fact
+  recall 0.77, 0.80, 0.81 and 0.87: the prompt fence is random per request and
+  llama.cpp batches slots, so the text changes. Retrieval was identical every
+  time. A difference of ~0.1 between two runs is not a regression.
+- **The corpus contradicts itself once**: crag-mcp's README says schema errors
+  are JSON-RPC `-32602`, a dogfood report says they are `isError: true`. Case
+  `f16` follows the README.
+
 ## Planned
 
-- `evals/cases.jsonl`: 30–50 labelled cases; retrieval (Recall@k) measured
-  separately from generation (faithfulness, local LLM judge checked against a
-  hand-graded sample).
-- A CI gate on the eval scores that accounts for their confidence interval.
+- A CI gate on the eval scores that accounts for run-to-run noise.
 - Tracing (OpenTelemetry), P50/P95 latency, tokens per answer.
 - One-command start with Docker Compose; an AWS deploy guide.
 - `docs/architecture.md`: why retrieval goes through MCP, and what it costs
