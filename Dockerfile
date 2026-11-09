@@ -8,8 +8,9 @@ ARG CMCP_REF=cdb8852
 ARG CRAG_REF=a3d4815
 
 # ---- C build: cRAG, then crag-mcp, which links cRAG's objects ------------
-# crag-mcp includes <sqlite3.h> but its Makefile adds only cRAG's include/;
-# CPATH points it at the header bundled with the sqlite3.o it links.
+# crag-mcp includes <sqlite3.h> but its Makefile (at the pinned CMCP_REF)
+# adds only cRAG's include/; CPATH points it at the header bundled with the
+# sqlite3.o it links. Fixed in cMCP 3c0e5d4; kept while CMCP_REF predates it.
 FROM debian:bookworm-slim AS crag
 ARG CMCP_REF
 ARG CRAG_REF

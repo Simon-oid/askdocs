@@ -68,7 +68,8 @@ Without Docker:
 ```sh
 # 1. The models: an embedder in Ollama, an LLM in llama.cpp.
 ollama pull mxbai-embed-large
-llama-server -hf Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M --port 8081 -ngl 99 -c 8192
+# 4 slots (= ASKDOCS_MAX_CONCURRENT), 4096 tokens each: -c is for all slots together.
+llama-server -hf Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M --port 8081 -ngl 99 -c 16384 -np 4
 
 # 2. The demo corpus: cMCP + cRAG documentation at pinned commits, indexed by cRAG.
 CRAG=/path/to/cRAG/crag scripts/build_corpus.sh
@@ -270,9 +271,28 @@ noisy end of the baseline still does. One exception, recorded in the file:
 correct refusals (n=10, never failed) would get a degenerate floor of 1.0 and
 get 0.9.
 
+## Load test
+
+Locust in a closed loop over the eval questions (`loadtest/run.sh`), with a
+limit of 4 on 4 llama.cpp slots ([`docs/load-test.md`](docs/load-test.md)):
+
+| users | answers/s | ttft P50 / P95 ms | answer P50 / P95 ms | rejected (503) | failed |
+|---|---|---|---|---|---|
+| 1 | 1.34 | 440 / 580 | 690 / 1700 | 0% | 0 |
+| 4 | 1.78 | 540 / 1100 | 2100 / 4300 | 0% | 0 |
+| 16 | 1.81 | 550 / 1500 | 2100 / 4000 | 87% | 0 |
+
+- **A configuration bug it caught.** The first run failed 68 of 104 answers
+  at 4 users: llama.cpp's `-c` is the context of all slots together, so 8192
+  was too small. It is now `-c 16384 -np 4`.
+- **The service is prefill-bound.** Each answer needs about 0.46 s of GPU
+  just to read its 2000-token prompt, so throughput stops near 1.8 answers/s.
+- **The limit must equal the slots.** With a limit of 8 on 4 slots,
+  throughput stayed the same and time to first token went from 0.5 s to
+  2.6 s, as the extra answers queued unseen inside llama.cpp.
+
 ## Planned
 
-- A load test: latency and throughput under concurrent users.
 - `docs/architecture.md`: why retrieval goes through MCP, and what it costs
   in latency, measured.
 

@@ -59,8 +59,10 @@ class Settings(BaseSettings):
     source_root_marker: str = "corpus/"
 
     # --- Service ---------------------------------------------------------
-    # One GPU serves one generation well; past this many in-flight answers
-    # requests are refused with 503 rather than queued without bound.
+    # Past this many in-flight answers, 503 + Retry-After instead of a queue.
+    # Set it to the model server's slots (llama.cpp -np): measured, a limit
+    # of 8 on 4 slots gave the same throughput and 5x the time to first
+    # token, the excess waiting unseen in llama.cpp (docs/load-test.md).
     max_concurrent: int = Field(4, ge=1, le=256)
 
     # --- Observability ---------------------------------------------------

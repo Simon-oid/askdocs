@@ -50,8 +50,12 @@ services:
   llm:
     image: *llama
     # -hf downloads the GGUF once into the models volume.
+    # -np slots = ASKDOCS_MAX_CONCURRENT, and -c is the context of ALL slots
+    # together (4096 each): longest prompt (~2700) + max_tokens (512) must
+    # fit in one. With -c 8192 the 4th concurrent answer failed with
+    # "Context size has been exceeded" (docs/load-test.md).
     command: ["-hf", "${ASKDOCS_LLM_HF:-Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M}",
-              "--host", "0.0.0.0", "--port", "8081", "-c", "8192"]
+              "--host", "0.0.0.0", "--port", "8081", "-c", "16384", "-np", "4"]
     environment: [LLAMA_CACHE=/models]
     volumes: [models:/models]
     healthcheck:
@@ -67,7 +71,7 @@ services:
       - ASKDOCS_LLM_BASE_URL=http://llm:8081/v1
       - ASKDOCS_EMBED_URL=http://ollama:11434/api/embeddings
       - ASKDOCS_EMBED_MODEL=${ASKDOCS_EMBED_MODEL:-mxbai-embed-large}
-      - ASKDOCS_MAX_CONCURRENT=${ASKDOCS_MAX_CONCURRENT:-4}
+      - ASKDOCS_MAX_CONCURRENT=4   # = llama.cpp's -np above; measured best
       # Empty: tracing off.
       - ASKDOCS_OTEL_ENDPOINT=${ASKDOCS_OTEL_ENDPOINT:-}
     # Not :ro, although the service only reads: crag-mcp opens the index in

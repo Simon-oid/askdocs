@@ -12,3 +12,4 @@ CLAUDE.md
 TODO.md
 GEMINI.md
 /evals/results/passages.jsonl
+/loadtest/out/
