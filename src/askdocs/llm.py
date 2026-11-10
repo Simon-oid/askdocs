@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -47,11 +47,17 @@ class Finish:
 
 
 Event = Delta | Usage | Finish
-DONE = object()              # the terminal `data: [DONE]`
+
+
+class _Done:
+    """The terminal `data: [DONE]`."""
+
+
+DONE = _Done()
 
 
 class LLM(Protocol):
-    def stream(self, messages: list[dict], max_tokens: int) -> AsyncIterator[Event]: ...
+    def stream(self, messages: list[dict], max_tokens: int) -> AsyncGenerator[Event, None]: ...
 
 
 def _int(v: object) -> int:
@@ -60,7 +66,7 @@ def _int(v: object) -> int:
     return v
 
 
-def parse_sse_line(line: str) -> list[Event] | object:
+def parse_sse_line(line: str) -> list[Event] | _Done:
     """One line of an OpenAI-style stream -> the events it carries (a chunk
     can carry text, a finish reason and usage at once), or DONE. Anything
     malformed is an LLMError: never an AttributeError that would reset the
@@ -143,7 +149,7 @@ class ChatCompletionsLLM:
             return _Retry(err, _retry_after(r))
         return err
 
-    async def stream(self, messages: list[dict], max_tokens: int) -> AsyncIterator[Event]:
+    async def stream(self, messages: list[dict], max_tokens: int) -> AsyncGenerator[Event, None]:
         """Events until the model finishes. Retries transport errors and
         RETRYABLE_STATUS, but only until the first event is yielded: past
         that point the caller has shown text. A stream that ends without
@@ -161,7 +167,7 @@ class ChatCompletionsLLM:
                         if time.monotonic() > deadline:   # keep-alives reset the read timeout
                             raise LLMError(f"LLM exceeded {self._total_s:.0f} s for one answer")
                         evs = parse_sse_line(line)
-                        if evs is DONE:
+                        if isinstance(evs, _Done):
                             return
                         for ev in evs:
                             finished = finished or isinstance(ev, Finish)

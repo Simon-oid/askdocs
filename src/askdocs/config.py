@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     # of 8 on 4 slots gave the same throughput and 5x the time to first
     # token, the excess waiting unseen in llama.cpp (docs/load-test.md).
     max_concurrent: int = Field(4, ge=1, le=256)
+    # One background retrieval at startup, so the embedder loads its model
+    # before the first user asks.
+    warmup: bool = True
 
     # --- Observability ---------------------------------------------------
     # OTLP/HTTP collector base URL (Jaeger, Tempo, OTel Collector), e.g.

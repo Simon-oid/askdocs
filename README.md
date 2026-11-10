@@ -113,8 +113,8 @@ data: {"answer": "...", "citations": [2, 3], "invalid_citations": [], "refused":
 | | |
 |---|---|
 | `POST /ask` | body `{"question": str (1–2000 chars), "k": int 1–20 (optional)}`; SSE by default, JSON with `?stream=false` |
-| SSE events | `sources` → `token`* → `done`, or `error` `{stage: retrieval\|generation, message, partial?}` |
-| Errors | `413` body over 16 KB · `422` bad input · `503` too many in flight · `502` (JSON mode) when a stage fails; details stay in the server log |
+| SSE events | `sources` → `token`* → `done`, or `error` `{stage: retrieval\|generation\|internal, message, partial?}`; a stream always ends with one of the two |
+| Errors | `413` body over 16 KB · `422` bad input · `503` too many in flight · `502` (JSON mode) when retrieval or the model fails, `500` on an internal error; details stay in the server log |
 | `GET /healthz` | `{"status", "in_flight", "max_concurrent"}` |
 | `GET /stats` | answers, refusals, errors by stage, and P50/P95 of each stage, tokens and cost over the last 1000 answers |
 
@@ -133,6 +133,7 @@ where every limit carries its reason.
 | `MCP_COMMAND`, `MCP_DB` | `crag-mcp`, `data/docs.db` | the MCP server and its index |
 | `EMBED_MODEL`, `EMBED_URL` | `mxbai-embed-large`, Ollama | must match the model the index was built with |
 | `TOP_K`, `MAX_CONCURRENT` | `5`, `4` | |
+| `WARMUP` | `true` | one background retrieval at startup, so the embedder is loaded before the first question |
 | `LLM_PRICE_INPUT_PER_MTOK`, `LLM_PRICE_OUTPUT_PER_MTOK` | `0`, `0` | USD per million tokens, for `cost_usd`; 0 for a local model |
 | `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME` | unset, `askdocs` | OTLP/HTTP collector, e.g. `http://localhost:4318`; needs `pip install '.[otel]'` |
 

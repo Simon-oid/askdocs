@@ -65,7 +65,8 @@ class Stats:
     loop thread, so it needs no lock."""
 
     def __init__(self, window: int = WINDOW):
-        self._series = {k: deque(maxlen=window) for k in (*STAGES, *TOKENS, "cost_usd")}
+        self._series: dict[str, deque[float]] = {
+            k: deque(maxlen=window) for k in (*STAGES, *TOKENS, "cost_usd")}
         self.answers = 0
         self.refusals = 0
         self.errors: dict[str, int] = {}

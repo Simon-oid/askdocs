@@ -94,8 +94,9 @@ Two operational findings:
 
 - **Cold start.** In the first run after starting the service, the first
   retrieval took 738 ms instead of 14 ms, because Ollama was loading the
-  embedding model. The retrieval P95 in that run was 122 ms. A warm-up query
-  at startup would remove that from the first user's request.
+  embedding model. The retrieval P95 in that run was 122 ms. The service now
+  runs one retrieval in the background at startup (`ASKDOCS_WARMUP`), so the
+  first user does not pay for it.
 - **`MCP send tools/list`**: the MCP SDK lists the tools once per session,
   after the first call. It costs 0.2 ms, once.
 

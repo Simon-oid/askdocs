@@ -202,3 +202,35 @@ async def test_body_under_the_limit_in_chunks_still_works(make_client):
     app, _ = await make_client()
     body = json.dumps({"question": "how is it sealed?"}).encode()
     assert await body_status(app, [body[:5], body[5:]]) == 200
+
+
+class BuggyRetriever:
+    async def search(self, query, k):
+        raise KeyError("/secret/internal/path")
+
+
+async def test_a_bug_is_a_500_with_no_internals_and_is_counted(make_client):
+    app, client = await make_client(retriever=BuggyRetriever())
+    async with app.router.lifespan_context(app), client:
+        r = await client.post("/ask?stream=false", json={"question": "q"})
+        s = await client.post("/ask", json={"question": "q"})
+        stats = (await client.get("/stats")).json()
+    assert r.status_code == 500 and r.json()["error"]["message"] == "internal error"
+    assert "/secret" not in r.text and "/secret" not in s.text
+    assert parse_sse(s.text)[-1][0] == "error"
+    assert stats["errors"] == {"internal": 2}
+
+
+async def test_startup_warms_the_retriever_and_survives_its_failure(make_client):
+    r = FakeRetriever()
+    app, client = await make_client(retriever=r)
+    async with app.router.lifespan_context(app), client:
+        await anyio.sleep(0.01)
+        assert r.queries == [("warm-up", 1)]
+    app, client = await make_client(retriever=FakeRetriever(error="down"))
+    async with app.router.lifespan_context(app), client:      # must not fail startup
+        assert (await client.get("/healthz")).status_code == 200
+    app, client = await make_client(retriever=(quiet := FakeRetriever()), warmup=False)
+    async with app.router.lifespan_context(app), client:
+        await anyio.sleep(0.01)
+        assert quiet.queries == []

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import aclosing, asynccontextmanager
 
 import anyio
@@ -25,7 +25,10 @@ from .telemetry import Stats
 log = logging.getLogger("askdocs")
 
 # What the client sees when a stage fails; details stay in the server log.
-CLIENT_ERROR = {"retrieval": "retrieval is unavailable", "generation": "the model failed to answer"}
+CLIENT_ERROR = {"retrieval": "retrieval is unavailable",
+                "generation": "the model failed to answer", "internal": "internal error"}
+# JSON mode: a failed dependency is a bad gateway, a bug is ours.
+ERROR_STATUS = {"retrieval": 502, "generation": 502, "internal": 500}
 
 
 MAX_QUESTION_CHARS = 2000
@@ -144,6 +147,17 @@ def public(event: str, data: dict) -> dict:
     return data
 
 
+async def warm_up(retriever: Retriever) -> None:
+    """One retrieval at startup, in the background. The first search makes
+    the embedder load its model (measured: 738 ms instead of 14); this way
+    the service pays for it, not the first user. A failure is only logged:
+    the dependency may come up later, and requests report their own errors."""
+    try:
+        await retriever.search("warm-up", 1)
+    except Exception:
+        log.warning("warm-up retrieval failed", exc_info=True)
+
+
 def parent_context(request: Request) -> Context:
     """Where an answer's trace hangs. FastAPI's own telemetry opens a server
     span per request (open until the last body chunk) and makes spans
@@ -172,6 +186,8 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
             async with anyio.create_task_group() as tg:
                 if hasattr(app.state.retriever, "run"):
                     await tg.start(app.state.retriever.run)
+                if s.warmup:
+                    tg.start_soon(warm_up, app.state.retriever)
                 yield
                 tg.cancel_scope.cancel()
         finally:
@@ -183,7 +199,7 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
     slots = Slots(s.max_concurrent)
     app.state.stats = stats = Stats()
 
-    async def events(question: str, k: int, parent: Context) -> AsyncIterator[PipelineEvent]:
+    async def events(question: str, k: int, parent: Context) -> AsyncGenerator[PipelineEvent, None]:
         async with aclosing(answer(question, app.state.retriever, app.state.llm, k=k,
                                    max_tokens=s.llm_max_tokens, prices=s.prices(),
                                    parent=parent)) as evs:
@@ -191,7 +207,7 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
                 stats.record(name, data)
                 yield name, data
 
-    async def stream(question: str, k: int, parent: Context) -> AsyncIterator[str]:
+    async def stream(question: str, k: int, parent: Context) -> AsyncGenerator[str, None]:
         # aclosing: on client disconnect the pipeline is closed right away,
         # which closes the upstream HTTP stream and stops the generation.
         async with aclosing(events(question, k, parent)) as evs:
@@ -230,7 +246,8 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
     return app
 
 
-async def collect_unless_gone(evs: AsyncIterator[PipelineEvent], request: Request) -> JSONResponse:
+async def collect_unless_gone(evs: AsyncGenerator[PipelineEvent, None],
+                              request: Request) -> JSONResponse:
     """collect(), cancelled if the client leaves. Starlette cancels a
     streaming response on disconnect but not a plain handler, so without
     this a JSON request would keep generating (and hold its slot) for
@@ -253,7 +270,7 @@ async def collect_unless_gone(evs: AsyncIterator[PipelineEvent], request: Reques
         "stage": "client", "message": "client disconnected"}}, status_code=499)
 
 
-async def collect(evs: AsyncIterator[PipelineEvent]) -> JSONResponse:
+async def collect(evs: AsyncGenerator[PipelineEvent, None]) -> JSONResponse:
     """The whole answer as one JSON envelope (evals, scripts, curl)."""
     sources: list = []
     async with aclosing(evs) as it:
@@ -266,6 +283,6 @@ async def collect(evs: AsyncIterator[PipelineEvent]) -> JSONResponse:
             elif name == "error":
                 body = public(name, data)
                 return JSONResponse({"success": False, "data": None, "error": body},
-                                    status_code=502)
+                                    status_code=ERROR_STATUS[data["stage"]])
     return JSONResponse({"success": False, "data": None,
                          "error": {"stage": "pipeline", "message": "no result"}}, status_code=500)

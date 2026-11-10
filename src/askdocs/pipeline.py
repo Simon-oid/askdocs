@@ -5,14 +5,16 @@ Events (name, payload), in order:
   token    a piece of answer text (zero or more)
   done     the full answer, citations, refusal flag, usage, cost, timings,
            and the trace id (null when tracing is off)
-  error    instead of `done` when retrieval or the model fails
+  error    instead of `done` when retrieval or the model fails (stage
+           retrieval | generation), or on an unexpected failure (internal)
 The HTTP layer maps them 1:1 onto SSE events; evals consume them directly.
 """
 
 from __future__ import annotations
 
+import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import aclosing
 from dataclasses import asdict
 
@@ -26,6 +28,7 @@ from .retrieval import RetrievalError, Retriever
 from .telemetry import FREE, TRACER, Prices, cost_usd
 
 PipelineEvent = tuple[str, dict]
+log = logging.getLogger("askdocs.pipeline")
 
 
 def _ms(t0: float) -> float:
@@ -39,7 +42,7 @@ def _trace_id(span: Span) -> str | None:
 
 async def answer(question: str, retriever: Retriever, llm: LLM, *, k: int,
                  max_tokens: int, prices: Prices = FREE,
-                 parent: Context | None = None) -> AsyncIterator[PipelineEvent]:
+                 parent: Context | None = None) -> AsyncGenerator[PipelineEvent, None]:
     """One trace per answer: `askdocs.answer` with children `retrieval` and
     `generation`. Spans are started with an explicit parent, never made
     "current": this generator yields with the generation span open, and a
@@ -58,6 +61,18 @@ async def answer(question: str, retriever: Retriever, llm: LLM, *, k: int,
                     outcome = _close_root(root, name, data)
                     data = {**data, "trace_id": _trace_id(root)}
                 yield name, data
+    except Exception as e:
+        # A bug, not a stage failure: the stream must still end with an
+        # event the client can act on. The traceback goes to the log and
+        # the span; the client gets the exception type only, since the
+        # message may hold internals. Cancellation is not an Exception
+        # and passes through.
+        log.exception("unexpected failure while answering")
+        outcome = "error"
+        root.record_exception(e)
+        root.set_status(StatusCode.ERROR, f"internal: {type(e).__name__}")
+        yield "error", {"stage": "internal", "message": type(e).__name__,
+                        "trace_id": _trace_id(root)}
     finally:
         root.set_attribute("askdocs.outcome", outcome)
         root.end()
@@ -75,7 +90,7 @@ def _close_root(root: Span, event: str, data: dict) -> str:
 
 
 async def _answer(question: str, retriever: Retriever, llm: LLM, k: int, max_tokens: int,
-                  prices: Prices, ctx: Context) -> AsyncIterator[PipelineEvent]:
+                  prices: Prices, ctx: Context) -> AsyncGenerator[PipelineEvent, None]:
     t0 = time.perf_counter()
     try:
         # No yield inside: safe to make this span current, which also

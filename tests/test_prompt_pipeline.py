@@ -1,3 +1,4 @@
+from askdocs.llm import Delta
 from askdocs.pipeline import answer
 from askdocs.prompt import MAX_PASSAGE_CHARS, REFUSAL, build_messages, citations, is_refusal
 from askdocs.retrieval import Passage
@@ -109,3 +110,18 @@ async def test_closing_the_answer_closes_the_model_stream_at_once():
     assert (await gen.__anext__())[0] == "token"
     await gen.aclose()                    # not a cancel: a direct close
     assert llm.cancelled and not llm.finished
+
+
+class BuggyLLM:
+    """An unexpected failure: not an LLMError, a plain bug."""
+
+    async def stream(self, messages, max_tokens):
+        yield Delta("partial ")
+        raise ValueError("secret internals")
+
+
+async def test_unexpected_exception_still_ends_with_an_error_event():
+    events = await run(FakeRetriever(), BuggyLLM())
+    name, data = events[-1]
+    assert name == "error" and data["stage"] == "internal"
+    assert data["message"] == "ValueError"          # the type, never the message text
