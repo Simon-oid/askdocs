@@ -298,6 +298,12 @@ limit of 4 on 4 llama.cpp slots ([`docs/load-test.md`](docs/load-test.md)):
   throughput stayed the same and time to first token went from 0.5 s to
   2.6 s, as the extra answers queued unseen inside llama.cpp.
 
+## Limitations
+
+[`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) lists where askdocs fails or is
+untested, with the numbers: faithfulness at 0.60, no authentication, one
+GPU's worth of throughput, an AWS deploy that has not been run.
+
 ## License
 
 MIT
