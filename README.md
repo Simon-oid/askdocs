@@ -64,10 +64,18 @@ RENDER_GID=$(getent group render | cut -d: -f3) \
 docker compose -f compose.yaml -f compose.cuda.yaml up -d    # NVIDIA GPU
 ```
 
+To answer with a GGUF file of your own (a fine-tuned model, say), add
+[`compose.local-model.yaml`](compose.local-model.yaml) with
+`ASKDOCS_LLM_GGUF=/abs/path/model.gguf`.
+
 The first start takes a few minutes, and later starts reuse the volumes.
 The ROCm image of llama.cpp is 22.9 GB. [`docs/deploy-aws.md`](docs/deploy-aws.md)
 runs the same stack on one EC2 GPU instance, reached through Session Manager
 with no open port.
+
+With the service up, [`scripts/demo.sh`](scripts/demo.sh) walks through it in four
+scenes: a cited answer streamed, a two-document question, a refusal made
+before the model is called, and the latency the service measured meanwhile.
 
 Without Docker:
 

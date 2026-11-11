@@ -35,6 +35,7 @@ jobs:
           docker compose config -q
           RENDER_GID=0 docker compose -f compose.yaml -f compose.rocm.yaml config -q
           docker compose -f compose.yaml -f compose.cuda.yaml config -q
+          ASKDOCS_LLM_GGUF=/m.gguf docker compose -f compose.yaml -f compose.local-model.yaml config -q
       - name: image builds (cRAG + crag-mcp from source), binaries link, service starts
         run: |
           docker build -t askdocs:ci .

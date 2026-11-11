@@ -1,0 +1,14 @@
+# Answer with a GGUF file from this machine instead of a model downloaded
+# from Hugging Face: for example a fine-tuned model
+# (https://github.com/Simon-oid/toolcall-ft exports one).
+#
+#   ASKDOCS_LLM_GGUF=/abs/path/model.gguf \
+#     docker compose -f compose.yaml -f compose.local-model.yaml up -d
+#
+# Combine with a GPU override by adding its -f after this one.
+services:
+  llm:
+    command: ["-m", "/local/model.gguf", "--host", "0.0.0.0", "--port", "8081",
+              "-c", "16384", "-np", "4"]
+    volumes:
+      - ${ASKDOCS_LLM_GGUF:?set ASKDOCS_LLM_GGUF to the absolute path of a .gguf file}:/local/model.gguf:ro
