@@ -1,5 +1,10 @@
 # askdocs
 
+[![CI](https://github.com/Simon-oid/askdocs/actions/workflows/ci.yml/badge.svg)](https://github.com/Simon-oid/askdocs/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Simon-oid/askdocs)](https://github.com/Simon-oid/askdocs/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](pyproject.toml)
+
 A question-answering service over a document corpus that **cites its sources**:
 FastAPI with streamed answers (SSE), retrieval through an MCP server
 ([cMCP](https://github.com/Simon-oid/cMCP)'s `crag-mcp`, backed by
