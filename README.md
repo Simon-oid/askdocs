@@ -6,6 +6,8 @@ FastAPI with streamed answers (SSE), retrieval through an MCP server
 [cRAG](https://github.com/Simon-oid/cRAG)), a local LLM served by llama.cpp,
 and an evaluation that blocks regressions in CI.
 
+![askdocs demo: a cited answer streamed with its sources, a two-document question, a refusal made before the model is called, and the latency the service measured](docs/demo.gif)
+
 Status: complete. The service, a 45-case evaluation with a CI gate,
 OpenTelemetry tracing, a one-command Docker Compose stack, a load test and
 an AWS guide (prepared, not yet run on AWS). Every number here comes from a
@@ -74,7 +76,7 @@ runs the same stack on one EC2 GPU instance, reached through Session Manager
 with no open port.
 
 With the service up, [`scripts/demo.sh`](scripts/demo.sh) walks through it in four
-scenes: a cited answer streamed, a two-document question, a refusal made
+scenes (the recording above): a cited answer streamed, a two-document question, a refusal made
 before the model is called, and the latency the service measured meanwhile.
 
 Without Docker:
