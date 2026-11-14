@@ -7,6 +7,11 @@ Behaviour is set by environment variables, so tests can make it fail:
   FAKE_MODE=toolerror isError result
   FAKE_MODE=garbage   an item that is not in crag_search format
   query "slow"        answer after 1 s (a slow embedder)
+  FAKE_STRUCTURED=1    also send structuredContent (and an outputSchema),
+                      as cMCP's crag-mcp does since 17599fb; its scores
+                      differ from the text's so tests can tell which
+                      one the client read. FAKE_MODE=empty adds the
+                      empty_index status.
   FAKE_DIE_AFTER=N    exit (as if crashed) on the N-th tools/call, once:
                       a marker file in FAKE_STATE_DIR keeps the restarted
                       server alive
@@ -20,6 +25,10 @@ import time
 MODE = os.environ.get("FAKE_MODE", "ok")
 DIE_AFTER = int(os.environ.get("FAKE_DIE_AFTER", "0"))
 STATE = os.environ.get("FAKE_STATE_DIR", "")
+STRUCTURED = os.environ.get("FAKE_STRUCTURED") == "1"
+OUTPUT_SCHEMA = {"type": "object", "required": ["status", "results"],
+                 "properties": {"status": {"type": "string"},
+                                "results": {"type": "array"}}}
 ROOT = "/abs/build/host/data/corpus/"
 NO_MATCH = ("(no chunk cleared the relevance threshold — the index is non-empty "
             "but nothing matched this query)")
@@ -38,6 +47,17 @@ def items(query: str) -> tuple[list[dict], bool]:
         {"type": "text", "text": f"[cos 0.601  bm25 0.00  fusion 0.016] {ROOT}cRAG/README.md\n"
                                  "Beta passage."},
     ], False
+
+
+def structured(query: str) -> dict:
+    if MODE == "nomatch":
+        return {"status": "below_threshold", "results": []}
+    if MODE == "empty":
+        return {"status": "empty_index", "results": []}
+    return {"status": "ok", "results": [
+        {"source": f"{ROOT}cMCP/docs/a.md", "cosine": 0.9, "bm25": 9.88, "fusion": 0.033,
+         "text": f"Alpha passage about {query}."},
+    ]}
 
 
 def reply(msg_id, result=None, error=None):
@@ -59,10 +79,13 @@ def main():
                            "capabilities": {"tools": {}},
                            "serverInfo": {"name": "fake-crag-mcp", "version": "0"}})
         elif method == "tools/list":
-            reply(msg_id, {"tools": [{"name": "crag_search", "inputSchema": {
+            tool = {"name": "crag_search", "inputSchema": {
                 "type": "object", "properties": {"query": {"type": "string"},
                                                  "k": {"type": "integer"}},
-                "required": ["query"]}}]})
+                "required": ["query"]}}
+            if STRUCTURED:
+                tool["outputSchema"] = OUTPUT_SCHEMA
+            reply(msg_id, {"tools": [tool]})
         elif method == "tools/call":
             calls += 1
             marker = os.path.join(STATE, "died") if STATE else ""
@@ -73,7 +96,10 @@ def main():
             if query == "slow":
                 time.sleep(1.0)           # longer than the test's MCP timeout
             content, is_error = items(query)
-            reply(msg_id, {"content": content, "isError": is_error})
+            result = {"content": content, "isError": is_error}
+            if STRUCTURED and not is_error:
+                result["structuredContent"] = structured(query)
+            reply(msg_id, result)
         else:
             reply(msg_id, error={"code": -32601, "message": f"no method {method}"})
 

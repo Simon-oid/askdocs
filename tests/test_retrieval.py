@@ -5,7 +5,13 @@ import anyio
 import pytest
 
 from askdocs.config import Settings
-from askdocs.retrieval import McpRetriever, RetrievalError, parse_items, short_source
+from askdocs.retrieval import (
+    McpRetriever,
+    RetrievalError,
+    parse_items,
+    parse_structured,
+    short_source,
+)
 
 FAKE = str(Path(__file__).with_name("fake_crag_mcp.py"))
 
@@ -27,6 +33,31 @@ def test_parse_items_no_match_sentinel_is_empty():
 def test_parse_items_rejects_unknown_format():
     with pytest.raises(RetrievalError):
         parse_items(["something else"], "corpus/")
+
+
+def test_parse_structured_reads_fields_and_relative_source():
+    sc = {"status": "ok", "results": [{"source": "/h/x/corpus/cRAG/b.md", "cosine": 0.71,
+                                       "bm25": 0.0, "fusion": 0.016, "text": " body "}]}
+    [p] = parse_structured(sc, "corpus/")
+    assert (p.source, p.text, p.cosine, p.bm25, p.fusion) == ("cRAG/b.md", "body", 0.71, 0.0, 0.016)
+
+
+@pytest.mark.parametrize("status", ["below_threshold", "no_match"])
+def test_parse_structured_no_hit_statuses_are_empty(status):
+    assert parse_structured({"status": status, "results": []}, "corpus/") == []
+
+
+@pytest.mark.parametrize("sc,match", [
+    ({"status": "empty_index", "results": []}, "index is empty"),
+    ({"status": "weird", "results": []}, "unexpected crag_search status"),
+    ({"status": "ok", "results": [{"source": "a.md"}]}, "unexpected crag_search result"),
+    ({"status": "ok", "results": [{"source": "a", "cosine": "x", "bm25": 0, "fusion": 0,
+                                   "text": ""}]}, "unexpected crag_search result"),
+    (["not", "a", "dict"], "structuredContent"),
+])
+def test_parse_structured_rejects_broken_payloads(sc, match):
+    with pytest.raises(RetrievalError, match=match):
+        parse_structured(sc, "corpus/")
 
 
 def test_short_source_without_marker_keeps_only_basename():
@@ -119,3 +150,20 @@ async def test_slow_call_times_out_without_killing_the_session(monkeypatch, tmp_
 
     assert await run_with(r, slow_then_fast) == 2
     assert r.reconnects == 0
+
+
+@pytest.mark.parametrize("mode,expected", [("ok", 1), ("nomatch", 0)])
+async def test_search_prefers_structured_content(monkeypatch, tmp_path, mode, expected):
+    env = {"FAKE_MODE": mode, "FAKE_STRUCTURED": "1"}
+    r = FakeServerRetriever(settings(monkeypatch, tmp_path), env)
+    hits = await run_with(r, lambda: r.search("seal", 5))
+    assert len(hits) == expected                      # the text side has 2 hits
+    if expected:
+        assert (hits[0].source, hits[0].cosine) == ("cMCP/docs/a.md", 0.9)
+
+
+async def test_structured_empty_index_is_a_retrieval_error(monkeypatch, tmp_path):
+    env = {"FAKE_MODE": "empty", "FAKE_STRUCTURED": "1"}
+    r = FakeServerRetriever(settings(monkeypatch, tmp_path), env)
+    with pytest.raises(RetrievalError, match="index is empty"):
+        await run_with(r, lambda: r.search("q", 5))

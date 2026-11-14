@@ -1,16 +1,16 @@
 # askdocs with its retriever: the Python service plus the `crag` CLI (to
 # build the index) and `crag-mcp` (spawned by the service over stdio), both
-# built from source at the commits the demo corpus is pinned to.
+# built from source at pinned commits. These pin the binaries only: the demo
+# corpus has its own pins in scripts/build_corpus.sh, so moving CMCP_REF
+# does not change the indexed documents or the eval baseline.
+# CMCP_REF 17599fb: crag_search returns structuredContent.
 #
 #   docker build -t askdocs .
 
-ARG CMCP_REF=cdb8852
+ARG CMCP_REF=17599fb
 ARG CRAG_REF=a3d4815
 
 # ---- C build: cRAG, then crag-mcp, which links cRAG's objects ------------
-# crag-mcp includes <sqlite3.h> but its Makefile (at the pinned CMCP_REF)
-# adds only cRAG's include/; CPATH points it at the header bundled with the
-# sqlite3.o it links. Fixed in cMCP 3c0e5d4; kept while CMCP_REF predates it.
 FROM debian:bookworm-slim AS crag
 ARG CMCP_REF
 ARG CRAG_REF
@@ -22,7 +22,7 @@ WORKDIR /src
 RUN git clone -q https://github.com/Simon-oid/cRAG && git -C cRAG checkout -q "$CRAG_REF" \
  && git clone -q https://github.com/Simon-oid/cMCP && git -C cMCP checkout -q "$CMCP_REF"
 RUN make -C cRAG -j"$(nproc)" crag \
- && CPATH=/src/cRAG/third_party make -C cMCP -j"$(nproc)" crag-mcp CRAG_DIR=../cRAG \
+ && make -C cMCP -j"$(nproc)" crag-mcp CRAG_DIR=../cRAG \
  && install -m 755 cRAG/crag cMCP/tools/crag-mcp/crag-mcp /usr/local/bin/
 
 # ---- runtime --------------------------------------------------------------

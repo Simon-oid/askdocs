@@ -93,13 +93,15 @@ The other costs are not latency:
 - **Supervision code.** anyio requires a task group to be exited by the
   task that entered it, so a request can never open or close the session.
   One task owns the session, and requests only borrow it.
-- **Text-format coupling.**
-  - `crag_search` returns text items (`[cos … bm25 … fusion …] path\n
-    body`), and askdocs parses them with a regex.
-  - A format change in the server would break the client. It would do so
-    loudly: an unparseable item is an error, never silently dropped.
-  - MCP structured tool output would remove the parsing. cMCP supports it;
-    `crag-mcp` does not emit it yet.
+- **Structured results, text as fallback.**
+  - `crag_search` returns `structuredContent` (`{status, results: [{source,
+    cosine, bm25, fusion, text}]}`), declared by its `outputSchema`; the MCP
+    SDK validates it, and askdocs reads the fields directly.
+  - `status` also tells an empty index (`empty_index`, a broken deployment:
+    a retrieval error) from a query nothing matched (an empty result).
+  - A crag-mcp older than cMCP `17599fb` sends only text items (`[cos …
+    bm25 … fusion …] path\n body`), which askdocs still parses with a regex.
+    Either way a malformed result is an error, never silently dropped.
 - **Deployment.** The image has to build the C code, and the index has to
   be mounted read-write, since SQLite's WAL mode writes `docs.db-shm` even
   for readers ([deploy](deploy-aws.md)).

@@ -4,6 +4,14 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- Retrieval reads crag-mcp's `structuredContent` (cMCP `17599fb`) instead
+  of regex-parsing the text items; the regex stays as the fallback for an
+  older crag-mcp. An empty index fails with a message saying so (it was
+  an "unexpected crag_search item").
+- Docker image builds crag-mcp at cMCP `17599fb`. The `CPATH` workaround
+  for the SQLite header is gone (fixed upstream in `3c0e5d4`). The corpus
+  pins, and so the eval baseline, are unchanged.
+
 ## 0.1.0 — 2026-11-10
 
 First release: the service, its evaluation, and what it takes to run it.

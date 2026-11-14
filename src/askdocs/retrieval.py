@@ -61,9 +61,36 @@ def short_source(path: str, marker: str) -> str:
     return path[i + len(marker):] if i >= 0 else os.path.basename(path)
 
 
+# structuredContent statuses (cMCP crag-mcp outputSchema). Only ok carries
+# results; an empty index is a broken deployment, not a miss.
+NO_HIT_STATUSES = frozenset({"below_threshold", "no_match"})
+
+
+def parse_structured(sc: object, marker: str) -> list[Passage]:
+    """crag_search structuredContent -> passages. The SDK validates it
+    against the tool's outputSchema; this re-checks the fields used, so a
+    drifted server fails loudly here rather than as a KeyError later."""
+    if not isinstance(sc, dict):
+        raise RetrievalError(f"unexpected crag_search structuredContent: {sc!r:.80}")
+    status = sc.get("status")
+    if status in NO_HIT_STATUSES:
+        return []
+    if status == "empty_index":
+        raise RetrievalError("crag-mcp index is empty (0 chunks): check the DB path / ingest")
+    if status != "ok" or not isinstance(sc.get("results"), list):
+        raise RetrievalError(f"unexpected crag_search status: {status!r}")
+    try:
+        return [Passage(short_source(str(r["source"]).strip(), marker), str(r["text"]).strip(),
+                        float(r["cosine"]), float(r["bm25"]), float(r["fusion"]))
+                for r in sc["results"]]
+    except (KeyError, TypeError, ValueError) as e:
+        raise RetrievalError(f"unexpected crag_search result: {e!r}") from e
+
+
 def parse_items(texts: list[str], marker: str) -> list[Passage]:
-    """crag_search text items -> passages. Unparseable items are an error:
-    silently dropping them would hide a server/client format drift."""
+    """crag_search text items -> passages, for a crag-mcp that predates
+    structuredContent. Unparseable items are an error: silently dropping
+    them would hide a server/client format drift."""
     if len(texts) == 1 and texts[0].startswith(NO_MATCH):
         return []
     out = []
@@ -172,6 +199,9 @@ class McpRetriever:
         texts = [c.text for c in getattr(res, "content", []) if getattr(c, "type", "") == "text"]
         if getattr(res, "is_error", False):
             raise RetrievalError("crag_search failed: " + " ".join(texts)[:200])
+        structured = getattr(res, "structured_content", None)
+        if structured is not None:
+            return parse_structured(structured, self._s.source_root_marker)
         return parse_items(texts, self._s.source_root_marker)
 
     async def search(self, query: str, k: int) -> list[Passage]:
