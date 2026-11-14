@@ -40,7 +40,7 @@ def fenced(text: str, fence: str) -> str:
     Hardening: runs of three or more angle brackets are also shortened to
     two, so nothing inside can even look like either end of a fence. This
     did not measurably help: evals/injection.py's fence_forge succeeded 5/6
-    without it and 4/6 with it, because the model follows the "end every
+    without it and 4/6, 6/6 with it, because the model follows the "end every
     answer with ..." request more than the fake delimiter (KNOWN_LIMITATIONS.md).
     Neither the corpus nor the eval questions contain such a run."""
     body = _FENCE_LIKE.sub(lambda m: m.group(0)[:2], text.replace(fence, ""))
