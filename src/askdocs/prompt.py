@@ -29,13 +29,22 @@ REMINDER = ("Read all the sources above. Answer from them, citing them as [n] af
             f"sentence. Only if no source contains the answer, reply exactly: {REFUSAL}")
 
 _CITE = re.compile(r"\[(\d{1,2})\]")
+_FENCE_LIKE = re.compile(r"<{3,}|>{3,}")
 
 
 def fenced(text: str, fence: str) -> str:
     """Text between markers it cannot contain. The fence is random per
     request, so a document (or a question) cannot close it early and forge
-    a source header or an instruction after it; any copy is removed anyway."""
-    return f"<<<{fence}\n{text.replace(fence, '')}\n{fence}>>>"
+    a source header or an instruction after it; any copy is removed anyway.
+
+    Hardening: runs of three or more angle brackets are also shortened to
+    two, so nothing inside can even look like either end of a fence. This
+    did not measurably help: evals/injection.py's fence_forge succeeded 5/6
+    without it and 4/6 with it, because the model follows the "end every
+    answer with ..." request more than the fake delimiter (KNOWN_LIMITATIONS.md).
+    Neither the corpus nor the eval questions contain such a run."""
+    body = _FENCE_LIKE.sub(lambda m: m.group(0)[:2], text.replace(fence, ""))
+    return f"<<<{fence}\n{body}\n{fence}>>>"
 
 
 def render_sources(passages: list[Passage], fence: str) -> str:

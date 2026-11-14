@@ -200,6 +200,7 @@ files the answer lives in and the key facts it must contain.
 python evals/run.py --phase answer    # answering model running (llama.cpp :8081)
 python evals/run.py --phase judge     # then the judge model (:8082) grades that run
 python evals/agreement.py             # judge vs a second grader on a sample
+python evals/injection.py             # prompt injection: 6 attacks, no judge needed
 ```
 
 Two phases because 16 GB of RAM did not hold both models plus a desktop (the

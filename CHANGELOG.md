@@ -4,6 +4,17 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- `evals/injection.py`: a prompt-injection run. One poisoned passage
+  among the real ones, six attacks at first and last rank, success checked
+  deterministically (canary, link, refusal, format), no judge. With the 3B,
+  6 of 72 attacks succeed, 4 of them by appending a line; see
+  `KNOWN_LIMITATIONS.md`. The attacks and detectors (`askdocs.injection`)
+  are unit-tested in CI.
+- Prompt: runs of three or more angle brackets inside a fence are shortened
+  to two, so a passage cannot even look like a fence end. Measured effect is
+  within noise (fence_forge 5/6 → 4/6). No corpus passage or eval question
+  contains one, so the main eval's prompts are unchanged.
+
 - Retrieval reads crag-mcp's `structuredContent` (cMCP `17599fb`) instead
   of regex-parsing the text items; the regex stays as the fallback for an
   older crag-mcp. An empty index fails with a message saying so (it was
