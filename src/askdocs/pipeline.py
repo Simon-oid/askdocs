@@ -22,8 +22,16 @@ from opentelemetry import trace
 from opentelemetry.context import Context
 from opentelemetry.trace import Span, StatusCode
 
+from .attribution import attribute
 from .llm import LLM, Delta, Finish, LLMError, Usage
-from .prompt import REFUSAL, build_messages, citations, is_refusal, normalize_citations
+from .prompt import (
+    MAX_PASSAGE_CHARS,
+    REFUSAL,
+    build_messages,
+    citations,
+    is_refusal,
+    normalize_citations,
+)
 from .retrieval import RetrievalError, Retriever
 from .telemetry import FREE, TRACER, Prices, cost_usd
 
@@ -41,7 +49,7 @@ def _trace_id(span: Span) -> str | None:
 
 
 async def answer(question: str, retriever: Retriever, llm: LLM, *, k: int,
-                 max_tokens: int, prices: Prices = FREE,
+                 max_tokens: int, prices: Prices = FREE, attribution: bool = True,
                  parent: Context | None = None) -> AsyncGenerator[PipelineEvent, None]:
     """One trace per answer: `askdocs.answer` with children `retrieval` and
     `generation`. Spans are started with an explicit parent, never made
@@ -55,7 +63,8 @@ async def answer(question: str, retriever: Retriever, llm: LLM, *, k: int,
     outcome = "cancelled"            # unless the stream reaches done or error
     try:
         # aclosing: closing this generator must close the model stream now.
-        async with aclosing(_answer(question, retriever, llm, k, max_tokens, prices, ctx)) as evs:
+        async with aclosing(_answer(question, retriever, llm, k, max_tokens, prices,
+                                    attribution, ctx)) as evs:
             async for name, data in evs:
                 if name in ("done", "error"):
                     outcome = _close_root(root, name, data)
@@ -90,7 +99,8 @@ def _close_root(root: Span, event: str, data: dict) -> str:
 
 
 async def _answer(question: str, retriever: Retriever, llm: LLM, k: int, max_tokens: int,
-                  prices: Prices, ctx: Context) -> AsyncGenerator[PipelineEvent, None]:
+                  prices: Prices, attribution: bool,
+                  ctx: Context) -> AsyncGenerator[PipelineEvent, None]:
     t0 = time.perf_counter()
     try:
         # No yield inside: safe to make this span current, which also
@@ -111,6 +121,7 @@ async def _answer(question: str, retriever: Retriever, llm: LLM, k: int, max_tok
         # generation that could only be ungrounded.
         yield "token", {"text": REFUSAL}
         yield "done", {"answer": REFUSAL, "refused": True, "refusal_reason": "no_sources",
+                       "model_answer": None, "attribution": None,
                        "citations": [], "invalid_citations": [], "truncated": False,
                        "usage": None, "cost_usd": None,
                        "timings": {**timings, "total_ms": _ms(t0)}}
@@ -152,11 +163,22 @@ async def _answer(question: str, retriever: Retriever, llm: LLM, k: int, max_tok
         # Not a refusal: the model said nothing, which is a failure to report.
         yield "error", {"stage": "generation", "message": "empty answer", "partial": ""}
         return
-    refused = is_refusal(text)
+    model_text, refused = text, is_refusal(text)
+    reason = "model" if refused else None
+    checked = None
+    if attribution and not refused:
+        checked = attribute(text, [p.text[:MAX_PASSAGE_CHARS] for p in passages])
+        text = checked.answer
+        if not text:
+            # Every sentence was dropped: nothing in the answer was tied to a source.
+            text, refused, reason = REFUSAL, True, "unsupported"
     valid, invalid = citations(text, len(passages))
     used = asdict(usage) if usage else None
     yield "done", {
-        "answer": text, "refused": refused, "refusal_reason": "model" if refused else None,
+        "answer": text, "refused": refused, "refusal_reason": reason,
+        "model_answer": model_text,
+        "attribution": None if checked is None else {
+            "recited": list(checked.recited), "dropped": list(checked.dropped)},
         "citations": valid, "invalid_citations": invalid,
         "truncated": finish == "length",
         "usage": used, "cost_usd": cost_usd(used, prices),

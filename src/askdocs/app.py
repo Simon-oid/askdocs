@@ -202,7 +202,7 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
     async def events(question: str, k: int, parent: Context) -> AsyncGenerator[PipelineEvent, None]:
         async with aclosing(answer(question, app.state.retriever, app.state.llm, k=k,
                                    max_tokens=s.llm_max_tokens, prices=s.prices(),
-                                   parent=parent)) as evs:
+                                   attribution=s.attribution, parent=parent)) as evs:
             async for name, data in evs:
                 stats.record(name, data)
                 yield name, data

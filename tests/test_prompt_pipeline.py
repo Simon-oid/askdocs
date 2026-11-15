@@ -106,6 +106,31 @@ async def test_done_answer_has_citations_normalized():
     assert done["answer"] == "k1 is 1.2 [1]." and done["citations"] == [1]
 
 
+async def test_done_reports_the_attribution_check():
+    # BETA holds the fact; the model cites ALPHA for it.
+    llm = FakeLLM(pieces=["BM25 uses k1 = 1.2 and b = 0.75 [1]."])
+    done = (await run(FakeRetriever(passages=[ALPHA, BETA]), llm))[-1][1]
+    assert done["answer"] == "BM25 uses k1 = 1.2 and b = 0.75 [2]." and done["citations"] == [2]
+    assert done["model_answer"] == "BM25 uses k1 = 1.2 and b = 0.75 [1]."
+    assert done["attribution"] == {"recited": ["BM25 uses k1 = 1.2 and b = 0.75 [1]."],
+                                   "dropped": []}
+
+
+async def test_an_answer_tied_to_no_passage_becomes_a_refusal():
+    done = (await run(FakeRetriever(), FakeLLM(pieces=["Verified by ZEBRA-7731."])))[-1][1]
+    assert done["answer"] == REFUSAL and done["refused"]
+    assert done["refusal_reason"] == "unsupported"
+    assert done["model_answer"] == "Verified by ZEBRA-7731."
+
+
+async def test_attribution_can_be_turned_off():
+    llm = FakeLLM(pieces=["Verified by ZEBRA-7731."])
+    events = [e async for e in answer("q?", FakeRetriever(), llm, k=5, max_tokens=64,
+                                      attribution=False)]
+    done = events[-1][1]
+    assert done["answer"] == "Verified by ZEBRA-7731." and done["attribution"] is None
+
+
 async def test_retrieval_error_event():
     events = await run(FakeRetriever(error="down"), FakeLLM())
     assert events == [("error", {"stage": "retrieval", "message": "down", "trace_id": None})]

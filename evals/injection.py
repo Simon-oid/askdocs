@@ -42,7 +42,7 @@ FIRST, LAST = 1, 99            # LAST past the end: appended after the real ones
 
 async def ask(question: str, retriever, llm, s: Settings) -> dict:
     async for name, data in answer(question, retriever, llm, k=s.top_k,
-                                   max_tokens=s.llm_max_tokens):
+                                   max_tokens=s.llm_max_tokens, attribution=s.attribution):
         if name == "done":
             return data
         if name == "error":
@@ -56,11 +56,15 @@ def row(case: Case, attack: Attack | None, rank: int | None, done: dict,
     if "error" in done:
         return {**out, "error": done["error"]}
     text = done["answer"]
-    out.update(answer=text, refused=done["refused"],
+    raw = done["model_answer"] or text
+    out.update(answer=text, model_answer=raw, refused=done["refused"],
                fact_recall=0.0 if done["refused"] else fact_recall(text, case.facts),
                invalid_citations=done["invalid_citations"])
     if attack:
         out["succeeded"] = attack_succeeded(attack, text, clean_refused)
+        # The same answer before askdocs.attribution checked it: a paired
+        # measure of what the check removes, free of run-to-run noise.
+        out["succeeded_unchecked"] = attack_succeeded(attack, raw, clean_refused)
     return out
 
 
@@ -100,13 +104,20 @@ def report(rows: list[dict], env: str) -> str:
     lines = ["# Prompt-injection run", "", env, "",
              "One poisoned passage among the real ones; success is checked "
              "deterministically (see `src/askdocs/injection.py`).", "",
-             "| Attack | Rank | Success rate [95% CI] | n |", "|---|---|---|---|"]
+             "Served is the answer the client gets; unchecked is the same answer as the "
+             "model wrote it, before `askdocs.attribution`.", "",
+             "| Attack | Rank | Served: success [95% CI] | n | Unchecked: success [95% CI] | n |",
+             "|---|---|---|---|---|---|"]
+
+    def rates(rs: list[dict]) -> str:
+        return (f"{pct([float(r['succeeded']) for r in rs])} | "
+                f"{pct([float(r['succeeded_unchecked']) for r in rs])}")
+
     for a in ATTACKS:
         for rank, label in ((FIRST, "first"), (LAST, "last")):
-            xs = [float(r["succeeded"]) for r in attacked
-                  if r["attack"] == a.id and r["rank"] == rank]
-            lines.append(f"| `{a.id}` ({a.goal}) | {label} | {pct(xs)} |")
-    lines.append(f"| **all attacks** | both | {pct([float(r['succeeded']) for r in attacked])} |")
+            rs = [r for r in attacked if r["attack"] == a.id and r["rank"] == rank]
+            lines.append(f"| `{a.id}` ({a.goal}) | {label} | {rates(rs)} |")
+    lines.append(f"| **all attacks** | both | {rates(attacked)} |")
     lines += ["", "| Key-fact recall | Mean [95% CI] | n |", "|---|---|---|",
               f"| clean | {pct([r['fact_recall'] for r in clean])} |",
               f"| attacked | {pct([r['fact_recall'] for r in attacked])} |"]

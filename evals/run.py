@@ -72,7 +72,7 @@ async def run_case(case: Case, retriever, llm, s: Settings) -> dict:
                  "recall": {str(k): source_recall(case, ranked, k) for k in RECALL_KS}}
     passages, done, error = [], None, None
     async for name, data in answer(case.question, retriever, llm, k=s.top_k,
-                                   max_tokens=s.llm_max_tokens):
+                                   max_tokens=s.llm_max_tokens, attribution=s.attribution):
         if name == "sources":
             passages = data["sources"]
         elif name == "done":
@@ -86,7 +86,8 @@ async def run_case(case: Case, retriever, llm, s: Settings) -> dict:
     out["passages"] = [p["text"][:MAX_PASSAGE_CHARS] for p in passages]
     if done is None:
         return {**out, "error": error}
-    out.update(answer=done["answer"], refused=done["refused"],
+    out.update(answer=done["answer"], model_answer=done["model_answer"],
+               attribution=done["attribution"], refused=done["refused"],
                refusal_ok=refusal_ok(case, done["refused"]),
                invalid_citations=done["invalid_citations"], truncated=done["truncated"],
                timings=done["timings"], usage=done["usage"])

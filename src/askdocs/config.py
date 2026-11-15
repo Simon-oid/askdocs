@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     mcp_timeout_s: float = 10.0
     mcp_reconnect_backoff_s: float = 0.5
     top_k: int = Field(5, ge=1, le=20)
+    # Check each answer sentence against the passages after generation:
+    # move a misplaced citation, drop a sentence tied to no passage
+    # (askdocs.attribution). Off: the model's answer as written.
+    attribution: bool = True
     # Shown to the client and the model instead of the indexer's absolute
     # paths: everything up to and including this marker is cut.
     source_root_marker: str = "corpus/"

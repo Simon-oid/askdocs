@@ -4,6 +4,15 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- `askdocs.attribution`: after generation, each sentence is checked against
+  the passages by content-word overlap. A sentence whose citation points at
+  the wrong passage is re-cited to the one that holds it; an uncited copy
+  of a passage gets its citation; a sentence tied to no passage is dropped
+  (an answer with nothing left becomes a refusal, `refusal_reason:
+  "unsupported"`). `done` carries `model_answer` and `attribution`
+  (`recited`, `dropped`); `ASKDOCS_ATTRIBUTION=false` turns it off.
+  `evals/reattribute.py` applies it to a saved run, and `evals/injection.py`
+  reports each attack served and unchecked, on the same answers.
 - Citations in the `【n】` / `【n†L1-L3】` form are read as `[n]`
   (`prompt.normalize_citations`), in `done.answer`, `done.citations` and
   the eval's claim split. The streamed tokens stay the model's own.
