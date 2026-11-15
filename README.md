@@ -249,9 +249,14 @@ answering, top-k 5; bootstrap 95% intervals over cases):
 
 What it says:
 
-- **Retrieval is not the bottleneck.** The right file is in the top 5 for 34
-  of 35 questions, but first only 61% of the time, so the prompt has to make the
-  model read past source [1].
+- **Retrieval is not the bottleneck; reading is.** The right file is in the
+  top 5 for 34 of 35 questions, and **99% of the key facts are in the
+  passages the model gets, against 77% in its answers**. Of the 7 cases that
+  miss a fact, 6 had it in front of the model (the report says which). The
+  right file is first only 61% of the time, so the prompt has to make the
+  model read past source [1]. Searching each clause of a two-part question
+  separately (one more search per clause) was measured and changed nothing
+  on these 45 cases, so it was not kept.
 - **Faithfulness was the weak point, and most of it was attribution.** The two
   failure modes found reading the verdicts were citing a neighbouring passage
   instead of the one holding the fact, and copying a passage with no citation

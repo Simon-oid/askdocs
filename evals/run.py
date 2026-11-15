@@ -93,6 +93,9 @@ async def run_case(case: Case, retriever, llm, s: Settings) -> dict:
                timings=done["timings"], usage=done["usage"])
     if case.answerable:
         out["fact_recall"] = 0.0 if done["refused"] else fact_recall(done["answer"], case.facts)
+        # The same check on what the model was given: a fact missing here is
+        # a retrieval miss, a fact here but not in the answer a reading miss.
+        out["fact_context"] = fact_recall("\n".join(out["passages"]), case.facts)
     return out
 
 
@@ -126,6 +129,8 @@ def summary_rows(results: list[dict]) -> list[str]:
                 f"{pct([r['context_recall'] for r in ans])} |")
     rows += [
         f"| Key-fact recall (answerable; refusal = 0) | {pct([r['fact_recall'] for r in ans])} |",
+        f"| Key facts present in the passages given (answerable) | "
+        f"{pct([r['fact_context'] for r in ans if 'fact_context' in r])} |",
         f"| Wrong refusal (answerable) | {pct([float(r['refused']) for r in ans])} |",
         f"| Correct refusal (unanswerable + off-topic) | "
         f"{pct([float(r['refusal_ok']) for r in neg])} |",
@@ -181,7 +186,11 @@ def failures(results: list[dict]) -> list[str]:
             if not r["refusal_ok"]:
                 why.append("refused" if r["refused"] else "answered an unanswerable question")
             if r.get("fact_recall", 1.0) < 1.0 and not r["refused"]:
-                why.append(f"key facts {r['fact_recall']:.2f}")
+                fc = r.get("fact_context")
+                where = "" if fc is None else (
+                    " (all in the passages: the model missed them)" if fc >= 1.0
+                    else f" (passages held {fc:.2f})")
+                why.append(f"key facts {r['fact_recall']:.2f}{where}")
             if (f := faithfulness(r)) is not None and f < 1.0:
                 why.append(f"faithfulness {f:.2f}")
         if r["recall"]["5"] is not None and r["recall"]["5"] < 1.0:

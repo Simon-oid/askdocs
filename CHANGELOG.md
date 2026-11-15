@@ -4,6 +4,11 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- Eval: `fact_context`, the share of a case's key facts present in the
+  passages the model was given, next to key-fact recall in the report; the
+  list of missed cases says whether the fact was in the passages (a reading
+  miss) or not (a retrieval miss). Baseline: 0.99 in the passages, 0.77 in
+  the answers. Backfilled for the committed run from its passages.
 - `askdocs.access`: optional API keys (`ASKDOCS_API_KEYS`, Bearer, constant-
   time compare; `/healthz` stays open) and a per-client token bucket
   (`ASKDOCS_RATE_PER_MINUTE`, `ASKDOCS_RATE_BURST`; per key, or per address

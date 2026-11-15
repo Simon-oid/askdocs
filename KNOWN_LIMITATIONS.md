@@ -23,6 +23,10 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
     so a client should replace the streamed text with it.
 - **Questions that need several documents: 0.30–0.60 key-fact recall** (5
   cases, so a wide interval), against 0.85–0.92 for single-document ones.
+  It is the 3B combining passages, not retrieval: 90% of these cases' key
+  facts were in the passages it got (99% over all answerable cases). Per-
+  clause retrieval was tried and measured with no effect; a larger model is
+  the lever (gpt-oss-120b: 0.90 key facts overall).
 - **The judge is itself a model.** On 25 sentences it agrees with independent
   grades at κ 0.80, with one error in each direction. The independent grades
   were written by a stronger model, not by a person.
