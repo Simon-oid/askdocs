@@ -81,7 +81,17 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
 
 - **The AWS deploy has never been run.** `compose.cuda.yaml` and the user-data
   script were checked for syntax only: there is no NVIDIA GPU here.
-- **A hosted model (`LLM_PROVIDER=openai`) is configurable but not measured.**
-  No quality, latency or cost numbers exist for it.
+- **One hosted model measured, for quality only.** gpt-oss-120b on Groq's
+  free tier, `reasoning_effort: low`, through `evals/hosted_proxy.py`
+  ([`evals/results-gptoss120b/`](evals/results-gptoss120b/report.md)):
+  - key facts 0.83 against the 3B's 0.87, faithfulness 0.63 against 0.60,
+    refusals identical; the paired gate finds no difference beyond the
+    noise. With the same five passages, a model 40 times larger answers no
+    better: the ceiling here is retrieval, not the model;
+  - **9 of its 34 answers cite as `【2】`**, which `prompt.citations` does
+    not read: in the service those answers would show no citation. A hosted
+    model needs its citation format checked, or normalised, before use;
+  - its latency is not comparable (the proxy spaces requests 30 s apart),
+    and the free tier has no cost to report.
 - **One language, one embedder, one model family.** Nothing here says how
   the numbers move with another.
