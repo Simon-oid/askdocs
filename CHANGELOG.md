@@ -4,6 +4,10 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- `scripts/build_corpus.sh` updates the index in place (`--fresh` to
+  rebuild): unchanged files are skipped, and a running service picks up
+  the new index without a restart. Checked against a live crag-mcp; the
+  limits are in `KNOWN_LIMITATIONS.md`.
 - Eval: `fact_context`, the share of a case's key facts present in the
   passages the model was given, next to key-fact recall in the report; the
   list of missed cases says whether the fact was in the passages (a reading

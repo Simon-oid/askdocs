@@ -6,10 +6,20 @@
 # checkable answers, which is what the eval set needs.
 #
 #   scripts/build_corpus.sh            # -> data/corpus/, data/docs.db
+#   scripts/build_corpus.sh --fresh    # delete the index first
 #   ASKDOCS_DATA_DIR=/data scripts/build_corpus.sh   # elsewhere
+#
+# The index is updated in place: unchanged files are skipped (cp -p keeps
+# their mtime), changed ones re-embedded, removed ones swept. A running
+# service sees the result without a restart: crag-mcp reads the same
+# SQLite file (WAL allows one writer next to readers), and cRAG rebuilds
+# its in-memory vectors when another process has written. While the index
+# runs, a query can see some files updated and others not yet.
 #
 # Needs: git, the `crag` CLI on PATH (or $CRAG), Ollama with the embedder.
 set -euo pipefail
+FRESH=0
+[ "${1:-}" = "--fresh" ] && FRESH=1
 
 CMCP_REF=${CMCP_REF:-cdb8852}
 CRAG_REF=${CRAG_REF:-a3d4815}
@@ -38,11 +48,13 @@ for repo in cMCP cRAG; do
     grep -v -E '^(tests/manual/corpus|tests/fixtures/|\.github/)' |
     while read -r f; do
         mkdir -p "$OUT/corpus/$repo/$(dirname "$f")"
-        cp "$CACHE/$repo/$f" "$OUT/corpus/$repo/$f"
+        cp -p "$CACHE/$repo/$f" "$OUT/corpus/$repo/$f"
     done
 done
 
-rm -f "$OUT/docs.db" "$OUT/docs.db-wal" "$OUT/docs.db-shm"
+# Deleting the file under a running crag-mcp would leave it reading the
+# old, unlinked one: only on request.
+[ "$FRESH" = 1 ] && rm -f "$OUT/docs.db" "$OUT/docs.db-wal" "$OUT/docs.db-shm"
 CRAG_EMBED_MODEL=$EMBED_MODEL "$CRAG" index "$OUT/corpus" --db "$OUT/docs.db" \
     --ext md --backend ollama --url "$OLLAMA_URL"
 "$CRAG" stats --db "$OUT/docs.db"

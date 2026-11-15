@@ -46,7 +46,13 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
   swap 3 of 45 near-tied rankings. A baseline holds only for its index.
 - **The index is read-only for the service, but must be mounted writable:**
   SQLite's WAL mode creates a `-shm` file even for readers.
-- **No re-indexing while running.** The corpus is built once by a script.
+- **Re-indexing while running is incremental and not atomic.**
+  `scripts/build_corpus.sh` updates the index in place and the running
+  service sees it without a restart (checked: a document indexed by
+  another process is found by the same crag-mcp process). During the
+  update a query can see some files new and some old: cRAG commits every
+  20 files, not once at the end. `--fresh` deletes the index first and
+  needs a restart of the service.
 
 ## Capacity and latency
 
