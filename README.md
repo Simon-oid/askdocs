@@ -208,8 +208,9 @@ kernel OOM-killed the answering model); one process can do both with
 `--phase all`.
 
 A hosted model runs through `evals/hosted_proxy.py` (paces a free tier,
-injects the key): gpt-oss-120b scores level with the 3B, 0.83 vs 0.87 key
-facts, and cites in its own `【n】` format in 9 of 34 answers
+injects the key): gpt-oss-120b finds no more key facts than the 3B (0.83 vs
+0.87) but is more faithful to its sources (0.87 vs 0.60), once its own `【n】`
+citation format, used in 9 of 34 answers, is read
 ([`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md)).
 
 What is measured, and why apart:

@@ -6,8 +6,10 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 - Hosted baseline: gpt-oss-120b (Groq free tier, reasoning low) on the 45
   cases, judged by the local 7B, in `evals/results-gptoss120b/`. Level with
-  the 3B (key facts 0.83 vs 0.87, faithfulness 0.63 vs 0.60, no gate
-  regression); 9 of 34 answers cite as `【n】`, unread by the citation parser.
+  the 3B on key facts (0.83 vs 0.87); faithfulness 0.87 vs 0.60 once its
+  `【n】` citations (9 of 34 answers, unread by the citation parser, which
+  made the judge mark those sentences unsupported: 0.63 as served) are
+  normalised and re-judged (`evals/results-gptoss120b-normcites/`).
   `evals/hosted_proxy.py` paces requests under the free tier's token limit.
 
 - `evals/injection.py`: a prompt-injection run. One poisoned passage

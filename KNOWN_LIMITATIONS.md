@@ -84,15 +84,18 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
 - **One hosted model measured, for quality only.** gpt-oss-120b on Groq's
   free tier, `reasoning_effort: low`, through `evals/hosted_proxy.py`
   ([`evals/results-gptoss120b/`](evals/results-gptoss120b/report.md)):
-  - key facts 0.83 against the 3B's 0.87, faithfulness 0.63 against 0.60,
-    refusals identical; the paired gate finds no difference beyond the
-    noise. With the same five passages, a model 40 times larger answers no
-    better: on this set the answering model is not the bottleneck. (The
-    right file is among the five in 99% of cases, so neither is finding it;
-    what remains is within the judge's and the labels' noise.)
-  - **9 of its 34 answers cite as `【2】`**, which `prompt.citations` does
-    not read: in the service those answers would show no citation. A hosted
-    model needs its citation format checked, or normalised, before use;
+  - key facts 0.83 against the 3B's 0.87, refusals identical: no
+    difference beyond the noise;
+  - **faithfulness 0.87 against 0.60** (+0.26 [+0.11, +0.41], noise 0.05),
+    but only once its citations are read: **9 of its 34 answers cite as
+    `【2】`** (or `【1†L1-L3】`), which `prompt.citations` does not parse. The
+    judge marks a sentence with no readable citation unsupported without
+    judging it, so as served it scores 0.63. The 0.87 is the same answers
+    with `【n】` rewritten to `[n]` and re-judged
+    ([`evals/results-gptoss120b-normcites/`](evals/results-gptoss120b-normcites/report.md));
+  - so a larger model adds no key facts here, but sticks closer to its
+    sources; and a hosted model needs its citation format parsed, or
+    normalised, before use, or both the service and the metric lose it;
   - its latency is not comparable (the proxy spaces requests 30 s apart),
     and the free tier has no cost to report.
 - **One language, one embedder, one model family.** Nothing here says how
