@@ -87,7 +87,9 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
   - key facts 0.83 against the 3B's 0.87, faithfulness 0.63 against 0.60,
     refusals identical; the paired gate finds no difference beyond the
     noise. With the same five passages, a model 40 times larger answers no
-    better: the ceiling here is retrieval, not the model;
+    better: on this set the answering model is not the bottleneck. (The
+    right file is among the five in 99% of cases, so neither is finding it;
+    what remains is within the judge's and the labels' noise.)
   - **9 of its 34 answers cite as `【2】`**, which `prompt.citations` does
     not read: in the service those answers would show no citation. A hosted
     model needs its citation format checked, or normalised, before use;
