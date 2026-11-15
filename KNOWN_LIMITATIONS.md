@@ -101,8 +101,9 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
   - **before reading a new model's numbers, check the parsers read its
     output:** its non-ASCII characters, and the share of its answers with a
     citation `prompt.citations` parses. Both artefacts above lowered the
-    score silently, without an error. and a hosted model needs its citation format parsed, or
-    normalised, before use, or both the service and the metric lose it;
+    score silently, without an error. A hosted model needs its citation
+    format parsed, or normalised, before use, or both the service and the
+    metric lose it;
   - its latency is not comparable (the proxy spaces requests 30 s apart),
     and the free tier has no cost to report.
 - **One language, one embedder, one model family.** Nothing here says how
