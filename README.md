@@ -208,7 +208,7 @@ kernel OOM-killed the answering model); one process can do both with
 `--phase all`.
 
 A hosted model runs through `evals/hosted_proxy.py` (paces a free tier,
-injects the key): gpt-oss-120b finds no more key facts than the 3B (0.83 vs
+injects the key): gpt-oss-120b finds no more key facts than the 3B (0.90 vs
 0.87) but is more faithful to its sources (0.87 vs 0.60), once its own `【n】`
 citation format, used in 9 of 34 answers, is read
 ([`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md)).

@@ -176,3 +176,10 @@ class TestJudge:
     async def test_an_unusable_verdict_is_unknown_not_unsupported(self):
         got = await judge_claim(SeqLLM(["NO", "hmm"]), Claim("x", (1, 2)), ["a", "b"])
         assert got == Verdict("x", (1, 2), None, None)
+
+
+def test_fact_recall_ignores_typography():
+    # gpt-oss writes non-breaking hyphens and narrow no-break spaces: the
+    # same fact must count, or a model is scored on its typesetting.
+    assert fact_recall("use bge‑m3, k1 = 1.2", ("bge-m3", "1.2")) == 1.0
+    assert fact_recall("the “hybrid” mode", ('"hybrid"',)) == 1.0

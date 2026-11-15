@@ -11,13 +11,13 @@ Means with bootstrap 95% intervals (10,000 resamples of the cases, seed 20261109
 | Retrieval recall@5 (answerable) | 0.99 [0.96, 1.00] | 35 |
 | Retrieval recall@10 (answerable) | 0.99 [0.96, 1.00] | 35 |
 | Context recall: right file among the passages the model got | 0.94 [0.87, 1.00] | 35 |
-| Key-fact recall (answerable; refusal = 0) | 0.83 [0.71, 0.94] | 35 |
+| Key-fact recall (answerable; refusal = 0) | 0.90 [0.80, 0.99] | 35 |
 | Wrong refusal (answerable) | 0.03 [0.00, 0.09] | 35 |
 | Correct refusal (unanswerable + off-topic) | 1.00 [1.00, 1.00] | 10 |
 | Faithfulness: judged sentences supported (per answer) | 0.87 [0.75, 0.96] | 34 |
 | Answers with an out-of-range citation | 0.00 [0.00, 0.00] | 45 |
-| Key-fact recall, factual only | 0.86 [0.72, 0.97] | 30 |
-| Key-fact recall, multi only | 0.70 [0.30, 1.00] | 5 |
+| Key-fact recall, factual only | 0.92 [0.82, 1.00] | 30 |
+| Key-fact recall, multi only | 0.80 [0.40, 1.00] | 5 |
 
 ## Latency (informational: one client, sequential)
 
@@ -45,11 +45,10 @@ No token prices set (ASKDOCS_LLM_PRICE_*_PER_MTOK): a local model's cost per ans
 - `f09` (factual): faithfulness 0.00
 - `f13` (factual): key facts 0.00
 - `f15` (factual): key facts 0.67; faithfulness 0.00
-- `f16` (factual): key facts 0.00; faithfulness 0.00
-- `f17` (factual): key facts 0.00
+- `f16` (factual): faithfulness 0.00
 - `f20` (factual): faithfulness 0.50
 - `f30` (factual): key facts 0.00
 - `m01` (multi): faithfulness 0.50
-- `m02` (multi): key facts 0.50; faithfulness 0.50
+- `m02` (multi): faithfulness 0.50
 - `m04` (multi): refused
 - `m05` (multi): recall@5 0.50

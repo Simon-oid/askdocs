@@ -16,6 +16,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .prompt import fold_typography
+
 ANSWERABLE = frozenset({"factual", "multi"})
 NOT_ANSWERABLE = frozenset({"unanswerable", "offtopic"})
 TYPES = ANSWERABLE | NOT_ANSWERABLE
@@ -102,7 +104,7 @@ def source_recall(case: Case, ranked: list[str], k: int) -> float | None:
 
 
 def _norm(text: str) -> str:
-    return " ".join(text.lower().replace(" ", " ").split())
+    return fold_typography(text).lower()
 
 
 def fact_recall(answer: str, facts: tuple[str, ...]) -> float:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import unicodedata
 
 from .retrieval import Passage
 
@@ -30,6 +31,19 @@ REMINDER = ("Read all the sources above. Answer from them, citing them as [n] af
 
 _CITE = re.compile(r"\[(\d{1,2})\]")
 _FENCE_LIKE = re.compile(r"<{3,}|>{3,}")
+# Typographic characters some models emit (gpt-oss: U+2011, U+202F, U+2019)
+# for what a plain-ASCII model writes as - ' ". NFKC alone keeps them.
+_TYPOGRAPHY = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-",
+                             "\u2014": "-", "\u2212": "-", "\u2018": "'", "\u2019": "'",
+                             "\u201c": '"', "\u201d": '"'})
+
+
+def fold_typography(text: str) -> str:
+    """Text with typographic variants folded to ASCII and whitespace runs
+    (including no-break spaces) collapsed, for comparisons that must not
+    depend on how a model typesets: a fact or a refusal is the same either
+    way. Measured: without it gpt-oss-120b lost 3 of 35 key-fact cases."""
+    return " ".join(unicodedata.normalize("NFKC", text).translate(_TYPOGRAPHY).split())
 
 
 def fenced(text: str, fence: str) -> str:
@@ -74,5 +88,5 @@ def citations(answer: str, n_sources: int) -> tuple[list[int], list[int]]:
 def is_refusal(answer: str) -> bool:
     """The fixed sentence, possibly followed by stray citations. A real
     answer that merely starts with "I don't know whether..." is not one."""
-    norm = " ".join(answer.split()).strip().lower()
+    norm = fold_typography(answer).lower()
     return norm.startswith(REFUSAL.lower().rstrip("."))

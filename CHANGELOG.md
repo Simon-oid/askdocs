@@ -4,9 +4,13 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- Fact and refusal checks fold typography (`prompt.fold_typography`: NFKC,
+  Unicode hyphens, quotes, no-break spaces). gpt-oss writes `bge‑m3` with
+  U+2011 and lost 3 key-fact cases to it (0.83 → 0.90). The 3B's committed
+  results are unchanged.
 - Hosted baseline: gpt-oss-120b (Groq free tier, reasoning low) on the 45
   cases, judged by the local 7B, in `evals/results-gptoss120b/`. Level with
-  the 3B on key facts (0.83 vs 0.87); faithfulness 0.87 vs 0.60 once its
+  the 3B on key facts (0.90 vs 0.87); faithfulness 0.87 vs 0.60 once its
   `【n】` citations (9 of 34 answers, unread by the citation parser, which
   made the judge mark those sentences unsupported: 0.63 as served) are
   normalised and re-judged (`evals/results-gptoss120b-normcites/`).

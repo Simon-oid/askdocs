@@ -135,3 +135,8 @@ async def test_unexpected_exception_still_ends_with_an_error_event():
     name, data = events[-1]
     assert name == "error" and data["stage"] == "internal"
     assert data["message"] == "ValueError"          # the type, never the message text
+
+
+def test_refusal_with_typographic_apostrophe_is_a_refusal():
+    assert is_refusal(REFUSAL.replace("'", "’"))
+    assert is_refusal(REFUSAL.replace(" ", " "))
