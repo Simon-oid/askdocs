@@ -49,7 +49,7 @@ from askdocs.gate import faithfulness
 from askdocs.judge import judge_claim
 from askdocs.llm import ChatCompletionsLLM, make_llm
 from askdocs.pipeline import answer
-from askdocs.prompt import MAX_PASSAGE_CHARS
+from askdocs.prompt import MAX_PASSAGE_CHARS, has_citation
 from askdocs.retrieval import McpRetriever
 from askdocs.telemetry import FREE, STAGES, TOKENS, Prices, cost_usd, percentile
 
@@ -132,6 +132,8 @@ def summary_rows(results: list[dict]) -> list[str]:
         f"{pct([f for r in ans if (f := faithfulness(r)) is not None])} |",
         f"| Answers with an out-of-range citation | "
         f"{pct([float(bool(r['invalid_citations'])) for r in ok])} |",
+        f"| Answers citing nothing (answered, not refused) | "
+        f"{pct([float(not has_citation(r['answer'])) for r in ans if not r['refused']])} |",
     ]
     for t in ("factual", "multi"):
         sub = [r for r in ans if r["type"] == t]

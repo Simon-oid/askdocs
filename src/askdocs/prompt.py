@@ -29,7 +29,10 @@ Example of the expected form: "The cache holds 512 entries [2] and is cleared on
 REMINDER = ("Read all the sources above. Answer from them, citing them as [n] after each "
             f"sentence. Only if no source contains the answer, reply exactly: {REFUSAL}")
 
-_CITE = re.compile(r"\[(\d{1,2})\]")
+CITE = re.compile(r"\[(\d{1,2})\]")
+# gpt-oss cites as 【2】 or 【1†L1-L3】 (9 of its 34 answers): read as [n],
+# or the service drops the citation and the judge marks the sentence unsupported.
+_LENTICULAR_CITE = re.compile(r"【(\d{1,2})(?:†[^】]*)?】")
 _FENCE_LIKE = re.compile(r"<{3,}|>{3,}")
 # Typographic characters some models emit (gpt-oss: U+2011, U+202F, U+2019)
 # for what a plain-ASCII model writes as - ' ". NFKC alone keeps them.
@@ -74,11 +77,21 @@ def build_messages(question: str, passages: list[Passage], fence: str | None = N
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
 
 
+def normalize_citations(text: str) -> str:
+    """Text with every citation in the [n] form the prompt asks for."""
+    return _LENTICULAR_CITE.sub(r"[\1]", text)
+
+
+def has_citation(answer: str) -> bool:
+    """Whether the answer cites anything at all, in range or not."""
+    return CITE.search(normalize_citations(answer)) is not None
+
+
 def citations(answer: str, n_sources: int) -> tuple[list[int], list[int]]:
     """(valid, invalid) source numbers cited in the answer, in first-use order.
     An invalid one points at a source that was never given: a fabrication."""
     seen: list[int] = []
-    for m in _CITE.finditer(answer):
+    for m in CITE.finditer(normalize_citations(answer)):
         n = int(m.group(1))
         if n not in seen:
             seen.append(n)

@@ -18,10 +18,11 @@ import itertools
 from dataclasses import dataclass
 
 from .evaluation import BOOTSTRAP_RESAMPLES, Case, bootstrap_ci, mean
+from .prompt import has_citation
 
 METRICS = ("recall@1", "recall@5", "context_recall", "key_facts", "wrong_refusal",
-           "correct_refusal", "faithfulness", "bad_citation", "error")
-LOWER_IS_BETTER = frozenset({"wrong_refusal", "bad_citation", "error"})
+           "correct_refusal", "faithfulness", "bad_citation", "uncited", "error")
+LOWER_IS_BETTER = frozenset({"wrong_refusal", "bad_citation", "uncited", "error"})
 
 
 class GateError(ValueError):
@@ -49,6 +50,9 @@ def case_metrics(row: dict) -> dict[str, float | None]:
         out["key_facts"] = row["fact_recall"]
         out["wrong_refusal"] = float(row["refused"])
         out["faithfulness"] = faithfulness(row)
+        # bad_citation catches a fabricated source; this catches none at all,
+        # which bad_citation scored as clean (gpt-oss-120b: 9 of 34 answers).
+        out["uncited"] = None if row["refused"] else float(not has_citation(row["answer"]))
     else:
         out["correct_refusal"] = float(row["refusal_ok"])
     out["bad_citation"] = float(bool(row["invalid_citations"]))

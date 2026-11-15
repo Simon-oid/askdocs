@@ -14,8 +14,8 @@ from askdocs.gate import (
 )
 
 
-def ans(i, facts=1.0, refused=False, claims=None, invalid=(), recall1=1.0):
-    row = {"id": i, "type": "factual", "question": f"q{i}?",
+def ans(i, facts=1.0, refused=False, claims=None, invalid=(), recall1=1.0, answer="x [1]."):
+    row = {"id": i, "type": "factual", "question": f"q{i}?", "answer": answer,
            "recall": {"1": recall1, "3": 1.0, "5": 1.0, "10": 1.0},
            "context_recall": 1.0, "fact_recall": facts,
            "refused": refused, "refusal_ok": not refused,
@@ -42,6 +42,16 @@ class TestCaseMetrics:
         assert m["key_facts"] == 0.5 and m["faithfulness"] == 0.5
         assert m["correct_refusal"] is None and m["error"] == 0.0
         assert m["context_recall"] == 1.0
+
+    def test_answer_without_a_readable_citation_is_uncited(self):
+        assert case_metrics(ans("a"))["uncited"] == 0.0
+        assert case_metrics(ans("a", answer="Plain prose."))["uncited"] == 1.0
+        assert case_metrics(ans("a", answer="Out of range [9]."))["uncited"] == 0.0
+        assert case_metrics(ans("a", answer="Lenticular 【1】."))["uncited"] == 0.0
+
+    def test_refusals_and_unanswerables_have_no_uncited_value(self):
+        assert case_metrics(ans("a", refused=True, answer="I don't know"))["uncited"] is None
+        assert case_metrics(neg("n", refused=False))["uncited"] is None
 
     def test_unanswerable_row(self):
         m = case_metrics(neg("n", refused=False))

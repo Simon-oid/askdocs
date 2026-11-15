@@ -35,7 +35,8 @@ POST /ask ──► crag_search over MCP (stdio) ──► passages [1..k]
 
 - **Citations are checked, not trusted.** `done.citations` lists the source
   numbers the answer uses; `done.invalid_citations` lists numbers that point
-  at no source (a fabrication the eval counts).
+  at no source (a fabrication the eval counts). `done.answer` writes every
+  citation as `[n]`, including the `【n】` form some models use.
 - **Refusing is a first-class answer.** Off-topic questions are refused in
   the retrieval step, without paying for a generation; when passages exist
   but do not contain the answer, the model is told to reply with one fixed

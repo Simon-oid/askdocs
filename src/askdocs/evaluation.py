@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .prompt import fold_typography
+from .prompt import CITE, fold_typography, normalize_citations
 
 ANSWERABLE = frozenset({"factual", "multi"})
 NOT_ANSWERABLE = frozenset({"unanswerable", "offtopic"})
@@ -25,7 +25,6 @@ TYPES = ANSWERABLE | NOT_ANSWERABLE
 BOOTSTRAP_RESAMPLES = 10_000
 BOOTSTRAP_SEED = 20261109
 
-_CITE = re.compile(r"\[(\d{1,2})\]")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _ONLY_CITES = re.compile(r"^(\s*\[\d{1,2}\])+[.!?]?\s*$")
 _PUNCT_GAP = re.compile(r"\s+([.!?,;:])")     # "1.2 [1]." -> "1.2 ." -> "1.2."
@@ -127,13 +126,13 @@ def claims(answer: str) -> list[Claim]:
     before it, which is how small models often place them.
     """
     out: list[Claim] = []
-    for part in _SENTENCE_END.split(answer.strip()):
-        cites = tuple(dict.fromkeys(int(n) for n in _CITE.findall(part)))
+    for part in _SENTENCE_END.split(normalize_citations(answer).strip()):
+        cites = tuple(dict.fromkeys(int(n) for n in CITE.findall(part)))
         if _ONLY_CITES.match(part) and out:
             prev = out[-1]
             out[-1] = Claim(prev.text, tuple(dict.fromkeys(prev.cites + cites)))
             continue
-        text = _PUNCT_GAP.sub(r"\1", " ".join(_CITE.sub("", part).split()))
+        text = _PUNCT_GAP.sub(r"\1", " ".join(CITE.sub("", part).split()))
         if text:
             out.append(Claim(text, cites))
     return out

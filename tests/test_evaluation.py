@@ -112,6 +112,10 @@ class TestGenerationMetrics:
     def test_trailing_marker_fragment_joins_the_previous_sentence(self):
         assert claims("Hybrid is the default. [3]") == [Claim("Hybrid is the default.", (3,))]
 
+    def test_lenticular_citations_are_claims_citations(self):
+        got = claims("Hybrid is the default 【3†L1】.")
+        assert got == [Claim("Hybrid is the default.", (3,))]
+
     def test_empty_answer_has_no_claims(self):
         assert claims("  ") == []
 

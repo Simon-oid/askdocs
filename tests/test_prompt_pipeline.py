@@ -1,6 +1,13 @@
 from askdocs.llm import Delta
 from askdocs.pipeline import answer
-from askdocs.prompt import MAX_PASSAGE_CHARS, REFUSAL, build_messages, citations, is_refusal
+from askdocs.prompt import (
+    MAX_PASSAGE_CHARS,
+    REFUSAL,
+    build_messages,
+    citations,
+    is_refusal,
+    normalize_citations,
+)
 from askdocs.retrieval import Passage
 
 from .fakes import ALPHA, BETA, FakeLLM, FakeRetriever
@@ -10,6 +17,13 @@ def test_citations_valid_invalid_and_order():
     assert citations("A [2]. B [1][2]. C [7].", 3) == ([2, 1], [7])
     assert citations("no cites", 3) == ([], [])
     assert citations("zero [0]", 3) == ([], [0])
+
+
+def test_lenticular_citations_are_read_as_plain_ones():
+    # gpt-oss-120b cites 9 of 34 answers this way; unread, they were lost.
+    assert normalize_citations("A 【2】. B 【1†L1-L3】【3】.") == "A [2]. B [1][3]."
+    assert citations("A 【2】.", 3) == ([2], [])
+    assert normalize_citations("plain [1], 【note】") == "plain [1], 【note】"
 
 
 def test_refusal_detection():
@@ -84,6 +98,12 @@ async def test_fabricated_citation_is_reported():
     events = await run(FakeRetriever(passages=[BETA]), FakeLLM(pieces=["k1 is 1.2 [1][3]."]))
     done = events[-1][1]
     assert done["citations"] == [1] and done["invalid_citations"] == [3]
+
+
+async def test_done_answer_has_citations_normalized():
+    events = await run(FakeRetriever(passages=[BETA]), FakeLLM(pieces=["k1 is 1.2 【1】."]))
+    done = events[-1][1]
+    assert done["answer"] == "k1 is 1.2 [1]." and done["citations"] == [1]
 
 
 async def test_retrieval_error_event():

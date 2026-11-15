@@ -91,10 +91,12 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
     the 3B's numbers do not move.)
   - **faithfulness 0.87 against 0.60** (+0.26 [+0.11, +0.41], noise 0.05),
     but only once its citations are read: **9 of its 34 answers cite as
-    `【2】`** (or `【1†L1-L3】`), which `prompt.citations` does not parse. The
-    judge marks a sentence with no readable citation unsupported without
-    judging it, so as served it scores 0.63. The 0.87 is the same answers
-    with `【n】` rewritten to `[n]` and re-judged
+    `【2】`** (or `【1†L1-L3】`), which `prompt.citations` did not parse then.
+    The judge marks a sentence with no readable citation unsupported without
+    judging it, so as served it scored 0.63. The 0.87 is the same answers
+    with `【n】` rewritten to `[n]` and re-judged. The service and the eval
+    now read that form (`prompt.normalize_citations`), and the gate's
+    `uncited` metric fails a run where answers carry no readable citation
     ([`evals/results-gptoss120b-normcites/`](evals/results-gptoss120b-normcites/report.md));
   - so a larger model adds no key facts here, but sticks closer to its
     sources;

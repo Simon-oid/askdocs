@@ -23,7 +23,7 @@ from opentelemetry.context import Context
 from opentelemetry.trace import Span, StatusCode
 
 from .llm import LLM, Delta, Finish, LLMError, Usage
-from .prompt import REFUSAL, build_messages, citations, is_refusal
+from .prompt import REFUSAL, build_messages, citations, is_refusal, normalize_citations
 from .retrieval import RetrievalError, Retriever
 from .telemetry import FREE, TRACER, Prices, cost_usd
 
@@ -146,7 +146,8 @@ async def _answer(question: str, retriever: Retriever, llm: LLM, k: int, max_tok
     finally:
         _end_generation(gen, usage, finish)
 
-    text = "".join(parts).strip()
+    # The streamed tokens are the model's own; the final answer cites as [n].
+    text = normalize_citations("".join(parts).strip())
     if not text:
         # Not a refusal: the model said nothing, which is a failure to report.
         yield "error", {"stage": "generation", "message": "empty answer", "partial": ""}

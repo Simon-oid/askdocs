@@ -25,6 +25,9 @@
     "bad_citation": {
       "max": 0.05
     },
+    "uncited": {
+      "max": 0.1
+    },
     "error": {
       "max": 0.0
     }
@@ -43,6 +46,7 @@
   },
   "noise_runs": 4,
   "floors_exceptions": {
-    "correct_refusal": "n=10 with no failure observed: the bootstrap interval is degenerate ([1, 1]), so the rule would allow no slip at all; one is allowed"
+    "correct_refusal": "n=10 with no failure observed: the bootstrap interval is degenerate ([1, 1]), so the rule would allow no slip at all; one is allowed",
+    "uncited": "added after the noise runs: the floor is the baseline's upper bound (0.088, 1 of 34) rounded outward, without a noise margin until the next noise measurement"
   }
 }

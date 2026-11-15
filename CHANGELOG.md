@@ -4,6 +4,14 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- Citations in the `【n】` / `【n†L1-L3】` form are read as `[n]`
+  (`prompt.normalize_citations`), in `done.answer`, `done.citations` and
+  the eval's claim split. The streamed tokens stay the model's own.
+- Gate metric `uncited`: the share of answered (not refused) cases whose
+  answer has no readable citation, with a ceiling of 0.10. `bad_citation`
+  counted only out-of-range numbers, so an answer citing nothing scored as
+  clean. The 3B is at 1 of 34; gpt-oss-120b was at 9 of 34 before the
+  parser read its form.
 - Fact and refusal checks fold typography (`prompt.fold_typography`: NFKC,
   Unicode hyphens, quotes, no-break spaces). gpt-oss writes `bge‑m3` with
   U+2011 and lost 3 key-fact cases to it (0.83 → 0.90). The 3B's committed
