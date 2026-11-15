@@ -4,6 +4,11 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- `askdocs.access`: optional API keys (`ASKDOCS_API_KEYS`, Bearer, constant-
+  time compare; `/healthz` stays open) and a per-client token bucket
+  (`ASKDOCS_RATE_PER_MINUTE`, `ASKDOCS_RATE_BURST`; per key, or per address
+  without keys; at most 10,000 clients tracked). New responses: `401`,
+  `429` with `Retry-After`. Both off by default.
 - `askdocs.attribution`: after generation, each sentence is checked against
   the passages by content-word overlap. A sentence whose citation points at
   the wrong passage is re-cited to the one that holds it; an uncited copy

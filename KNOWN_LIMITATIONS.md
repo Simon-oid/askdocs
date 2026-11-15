@@ -59,11 +59,17 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
 
 ## Security and operations
 
-- **No authentication, no rate limit per client.** Anyone who can reach the
-  port can spend the GPU. The Compose stack publishes it on `127.0.0.1` only,
-  and the AWS guide opens no inbound port.
-- **`/stats` and `/healthz` are open too.** They expose counts and latencies,
-  no content.
+- **Authentication is shared API keys, off by default.** With
+  `ASKDOCS_API_KEYS` unset anyone who can reach the port can spend the GPU;
+  the Compose stack publishes it on `127.0.0.1` only, and the AWS guide opens
+  no inbound port. Keys are static and shared: no users, no expiry, no
+  rotation without a restart. No TLS: run it behind a proxy that has it.
+- **The rate limit is per process and per key.** Each replica keeps its own
+  buckets, in memory, lost on restart. Without keys it is per client
+  address, which behind a reverse proxy is the proxy's: one bucket for
+  everyone. `X-Forwarded-For` is not trusted.
+- **`/healthz` is always open;** `/stats` is open only without keys. They
+  expose counts and latencies, no content.
 - **Prompt injection is reduced, not solved.** Passages and the question sit
   inside per-request random fences, and the prompt tells the model to treat
   them as data. `evals/injection.py` measures it with the 3B: one poisoned

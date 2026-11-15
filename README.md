@@ -45,6 +45,11 @@ POST /ask ──► crag_search over MCP (stdio) ──► passages [1..k]
   retries (exponential backoff) only before the first token reaches the
   client; one reconnect if the MCP server dies; at most
   `ASKDOCS_MAX_CONCURRENT` answers in flight, then `503` with `Retry-After`.
+- **Optional keys and a per-client limit.** `ASKDOCS_API_KEYS` (comma-separated)
+  makes `/ask` and `/stats` require `Authorization: Bearer <key>`, compared
+  in constant time; `ASKDOCS_RATE_PER_MINUTE` and `ASKDOCS_RATE_BURST` give
+  each key (or each address, without keys) a token bucket, then `429` with
+  `Retry-After`. Both are off by default (`askdocs.access`).
 - **Incomplete is not short.** A model stream that ends without `[DONE]` or
   a finish reason, or carries an error chunk, is an `error`, never a
   truncated "answer"; an answer cut by `max_tokens` has `done.truncated`.
@@ -130,8 +135,8 @@ data: {"answer": "...", "citations": [2, 3], "invalid_citations": [], "refused":
 |---|---|
 | `POST /ask` | body `{"question": str (1–2000 chars), "k": int 1–20 (optional)}`; SSE by default, JSON with `?stream=false` |
 | SSE events | `sources` → `token`* → `done`, or `error` `{stage: retrieval\|generation\|internal, message, partial?}`; a stream always ends with one of the two |
-| Errors | `413` body over 16 KB · `422` bad input · `503` too many in flight · `502` (JSON mode) when retrieval or the model fails, `500` on an internal error; details stay in the server log |
-| `GET /healthz` | `{"status", "in_flight", "max_concurrent"}` |
+| Errors | `401` missing or wrong API key (when keys are set) · `413` body over 16 KB · `422` bad input · `429` over the per-client rate · `503` too many in flight · `502` (JSON mode) when retrieval or the model fails, `500` on an internal error; details stay in the server log |
+| `GET /healthz` | `{"status", "in_flight", "max_concurrent"}`; open even with API keys, for probes |
 | `GET /stats` | answers, refusals, errors by stage, and P50/P95 of each stage, tokens and cost over the last 1000 answers |
 
 ## Configuration
@@ -334,8 +339,8 @@ limit of 4 on 4 llama.cpp slots ([`docs/load-test.md`](docs/load-test.md)):
 ## Limitations
 
 [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) lists where askdocs fails or is
-untested, with the numbers: questions that need several documents, no
-authentication, one
+untested, with the numbers: questions that need several documents, keys
+but no user accounts, one
 GPU's worth of throughput, an AWS deploy that has not been run.
 
 ## License

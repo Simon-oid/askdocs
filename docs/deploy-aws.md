@@ -83,8 +83,10 @@ SG=$(aws ec2 create-security-group --group-name askdocs --vpc-id "$VPC" \
 Outbound stays open: the instance downloads images, the models and the corpus
 sources.
 
-**askdocs has no authentication.** Opening port 8000 to the internet would
-let anyone spend your GPU time. Do not add an inbound rule for it.
+**askdocs has only optional shared API keys (`ASKDOCS_API_KEYS`) and no
+TLS.** Opening port 8000 to the internet would let anyone spend your GPU
+time, and keys would cross the network in clear. Do not add an inbound rule
+for it.
 
 ## 3. The AMI
 

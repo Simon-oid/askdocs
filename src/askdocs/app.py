@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from collections.abc import AsyncGenerator, Callable
 from contextlib import aclosing, asynccontextmanager
 
@@ -16,6 +17,7 @@ from opentelemetry import propagate, trace
 from opentelemetry.context import Context
 from pydantic import BaseModel, Field, field_validator
 
+from .access import ApiKeys, RateLimiter
 from .config import Settings
 from .llm import LLM, make_llm
 from .pipeline import PipelineEvent, answer
@@ -197,6 +199,18 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
     app = FastAPI(title="askdocs", version="0.1.0", lifespan=lifespan)
     app.add_middleware(BodyLimit)
     slots = Slots(s.max_concurrent)
+    keys = ApiKeys.parse(s.api_keys)
+    limiter = RateLimiter(s.rate_per_minute, s.rate_burst)
+
+    def client_of(request: Request) -> str:
+        """The caller's name, or 401. Without keys, its address."""
+        who = keys.identify(request.headers.get("authorization"))
+        if who is None:
+            raise HTTPException(401, "missing or invalid API key",
+                                headers={"WWW-Authenticate": "Bearer"})
+        if not keys.enabled:
+            who = "addr:" + (request.client.host if request.client else "unknown")
+        return who
     app.state.stats = stats = Stats()
 
     async def events(question: str, k: int, parent: Context) -> AsyncGenerator[PipelineEvent, None]:
@@ -219,12 +233,17 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
         return {"status": "ok", "in_flight": slots.used, "max_concurrent": slots.n}
 
     @app.get("/stats")
-    async def get_stats() -> dict:
+    async def get_stats(request: Request) -> dict:
+        client_of(request)
         return stats.snapshot()
 
     @app.post("/ask")
     async def ask(req: AskRequest, request: Request,
                   stream_: bool = Query(True, alias="stream")):
+        wait = limiter.take(client_of(request))
+        if wait > 0:
+            raise HTTPException(429, "rate limit exceeded",
+                                headers={"Retry-After": str(math.ceil(wait))})
         release = slots.try_take()
         if release is None:
             raise HTTPException(503, "too many answers in flight", headers={"Retry-After": "1"})

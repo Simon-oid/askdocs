@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     # of 8 on 4 slots gave the same throughput and 5x the time to first
     # token, the excess waiting unseen in llama.cpp (docs/load-test.md).
     max_concurrent: int = Field(4, ge=1, le=256)
+    # Accepted API keys, comma-separated (Authorization: Bearer <key>).
+    # Unset: no authentication, as before (askdocs.access).
+    api_keys: SecretStr | None = None
+    # Per client (per key, or per address without keys): answers per
+    # minute and the burst allowed at once. 0: no limit.
+    rate_per_minute: int = Field(0, ge=0, le=100_000)
+    rate_burst: int = Field(5, ge=1, le=10_000)
     # One background retrieval at startup, so the embedder loads its model
     # before the first user asks.
     warmup: bool = True
