@@ -210,7 +210,8 @@ kernel OOM-killed the answering model); one process can do both with
 
 A hosted model runs through `evals/hosted_proxy.py` (paces a free tier,
 injects the key): gpt-oss-120b finds no more key facts than the 3B (0.90 vs
-0.87) but is more faithful to its sources (0.87 vs 0.60), once its own `【n】`
+0.87) but was more faithful to its sources (0.87 vs 0.60, before
+`askdocs.attribution`), once its own `【n】`
 citation format, used in 9 of 34 answers, is read
 ([`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md)).
 
@@ -233,21 +234,30 @@ answering, top-k 5; bootstrap 95% intervals over cases):
 |---|---|---|
 | Retrieval recall@1 / @3 / @5 | 0.61 / 0.94 / 0.99 | 35 |
 | Context recall (right file among the 5 passages the model got) | 0.94 [0.87, 1.00] | 35 |
-| Key-fact recall | 0.87 [0.76, 0.96] | 35 |
-| ... factual / multi-source | 0.92 / 0.60 [0.30, 0.90] | 30 / 5 |
-| Wrong refusals | 0.03 [0.00, 0.09] | 35 |
+| Key-fact recall | 0.77 [0.63, 0.90] | 35 |
+| ... factual / multi-source | 0.85 / 0.30 [0.00, 0.70] | 30 / 5 |
+| Wrong refusals | 0.06 [0.00, 0.14] | 35 |
 | Correct refusals (unanswerable + off-topic) | 1.00 | 10 |
-| Faithfulness (judged sentences supported) | 0.60 [0.45, 0.75] | 34 |
+| Faithfulness (judged sentences supported) | 0.82 [0.69, 0.92] | 33 |
+| Answers citing nothing | 0.00 | 33 |
 
 What it says:
 
 - **Retrieval is not the bottleneck.** The right file is in the top 5 for 34
   of 35 questions, but first only 61% of the time, so the prompt has to make the
   model read past source [1].
-- **Faithfulness is the weak point.** The two failure modes found reading the
-  verdicts: citing a neighbouring passage instead of the one holding the fact,
-  and copying a passage as a list with no citations at all. The answer is often
-  right and badly attributed.
+- **Faithfulness was the weak point, and most of it was attribution.** The two
+  failure modes found reading the verdicts were citing a neighbouring passage
+  instead of the one holding the fact, and copying a passage with no citation
+  at all: the answer right, its pointer wrong. `askdocs.attribution` now
+  checks every sentence against the passages after generation, moves a
+  misplaced citation and drops a sentence tied to none. On the same saved
+  answers (no regeneration, so no run noise) faithfulness went from **0.60 to
+  0.83** (+0.23 [+0.11, +0.35]) with key facts unchanged; over four fresh runs
+  it is 0.78–0.88, close to gpt-oss-120b's 0.87.
+- **Key facts move between runs.** The four runs behind this baseline gave
+  0.77–0.80, the earlier four 0.77–0.87. The check removed key facts in one
+  case of 140 (a paraphrased sentence it could not tie to its passage).
 - **The judge is usable, not perfect.** On a 25-sentence sample graded
   independently against the full cited passages it agreed on 23 (Cohen's kappa
   0.80): it rejected one sentence supported by a paraphrase and accepted one
@@ -255,7 +265,7 @@ What it says:
   way. The second grader was a stronger model (Claude Opus 5.5, recorded as
   `reference_by`), not a person: a check of the judge, not ground truth.
 - **Single runs are noisy.** At temperature 0, four answer runs gave key-fact
-  recall 0.77, 0.80, 0.81 and 0.87: the prompt fence is random per request and
+  recall 0.77, 0.80, 0.81 and 0.87 (before attribution): the prompt fence is random per request and
   llama.cpp batches slots, so the text changes. Retrieval was identical every
   time. A difference of ~0.1 between two runs is not a regression.
 - **The corpus contradicts itself once**: crag-mcp's README says schema errors
@@ -280,8 +290,8 @@ case and calls a drop a regression only if **both**
 
 1. the paired bootstrap interval of (new − base) excludes zero, and
 2. the drop is larger than the **run-to-run noise**: the largest gap between
-   any two runs of the same code (4 runs: key facts 0.10, wrong refusals 0.06,
-   faithfulness 0.05, retrieval 0).
+   any two runs of the same code (two sets of 4 runs, the larger kept: key
+   facts 0.10, wrong refusals 0.06, faithfulness 0.09, retrieval 0).
 
 The second condition is not decoration. Comparing the baseline with a rerun of
 the *same code*, the paired test alone flagged a key-fact "regression" of −0.10
@@ -324,7 +334,8 @@ limit of 4 on 4 llama.cpp slots ([`docs/load-test.md`](docs/load-test.md)):
 ## Limitations
 
 [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) lists where askdocs fails or is
-untested, with the numbers: faithfulness at 0.60, no authentication, one
+untested, with the numbers: questions that need several documents, no
+authentication, one
 GPU's worth of throughput, an AWS deploy that has not been run.
 
 ## License

@@ -13,6 +13,13 @@ All notable changes to askdocs. Dates are ISO 8601.
   (`recited`, `dropped`); `ASKDOCS_ATTRIBUTION=false` turns it off.
   `evals/reattribute.py` applies it to a saved run, and `evals/injection.py`
   reports each attack served and unchecked, on the same answers.
+  Measured with the 3B: faithfulness 0.60 → 0.83 on the same saved answers
+  (+0.23 [+0.11, +0.35], key facts unchanged); the "append a line"
+  injection 4–5 of 6 → 0 of 6 in three runs.
+- New baseline in `evals/results/` (the first of four runs with the
+  check): key facts 0.77, faithfulness 0.82. Gate: faithfulness floor
+  0.35 → 0.60, noise from two sets of four runs (larger kept), the
+  key-fact and wrong-refusal floors not loosened (`gate.json`).
 - Citations in the `【n】` / `【n†L1-L3】` form are read as `[n]`
   (`prompt.normalize_citations`), in `done.answer`, `done.citations` and
   the eval's claim split. The streamed tokens stay the model's own.
