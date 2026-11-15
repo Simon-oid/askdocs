@@ -51,3 +51,32 @@ async def test_answerable_question_is_grounded_and_cited():
 async def test_off_topic_question_refuses_without_generation():
     d = await ask("How do I bake sourdough bread?")
     assert d["refused"] and d["refusal_reason"] == "no_sources" and d["usage"] is None
+
+
+async def test_running_retriever_sees_an_index_updated_by_another_process(tmp_path):
+    """build_corpus.sh updates the index in place for a running service:
+    the same crag-mcp process must find a document indexed after it started.
+    Works on a copy of the index; needs the `crag` CLI ($CRAG or on PATH)."""
+    import shutil
+
+    import anyio
+
+    from askdocs.retrieval import McpRetriever
+
+    base = Settings()
+    db = tmp_path / "docs.db"
+    shutil.copy(base.mcp_db, db)
+    term = "zanzibarquokka"
+    retriever = McpRetriever(base.model_copy(update={"mcp_db": str(db)}))
+    async with anyio.create_task_group() as tg:
+        await tg.start(retriever.run)
+        assert not any(term in p.text for p in await retriever.search(f"what is {term}", 5))
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        (corpus / f"{term}.md").write_text(f"# {term}\n\nThe {term} is a test codename.\n")
+        await anyio.run_process(
+            [os.environ.get("CRAG", "crag"), "index", str(corpus), "--db", str(db),
+             "--ext", "md", "--backend", base.embed_backend, "--url", base.embed_url],
+            env={**os.environ, "CRAG_EMBED_MODEL": base.embed_model})
+        assert any(term in p.text for p in await retriever.search(f"what is {term}", 5))
+        tg.cancel_scope.cancel()
