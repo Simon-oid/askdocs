@@ -90,3 +90,17 @@ async def test_rate_limit_answers_429_with_retry_after(make_client):  # noqa: F8
 def test_settings_validate_the_rate_limit():
     with pytest.raises(ValueError):
         Settings(rate_per_minute=-1)
+
+
+async def test_failed_keys_are_rate_limited_by_address(make_client):  # noqa: F811
+    # Without this, guessing keys is free: a wrong key got 401 before the limiter.
+    app, client = await make_client(api_keys=SecretStr("k1"), rate_per_minute=60, rate_burst=1)
+    bad = {"Authorization": "Bearer guess"}
+    async with app.router.lifespan_context(app), client:
+        first = await client.post("/ask?stream=false", json={"question": "q"}, headers=bad)
+        second = await client.post("/ask?stream=false", json={"question": "q"}, headers=bad)
+        good = await client.post("/ask?stream=false", json={"question": "q"},
+                                 headers={"Authorization": "Bearer k1"})
+    assert first.status_code == 401
+    assert second.status_code == 429 and int(second.headers["retry-after"]) >= 1
+    assert good.status_code == 200          # the key's own bucket is separate

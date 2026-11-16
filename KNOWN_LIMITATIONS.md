@@ -78,6 +78,8 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
   buckets, in memory, lost on restart. Without keys it is per client
   address, which behind a reverse proxy is the proxy's: one bucket for
   everyone. `X-Forwarded-For` is not trusted.
+  Failed key attempts are limited per address too, so behind a proxy they
+  share that one bucket with every other failed attempt.
 - **`/healthz` is always open;** `/stats` is open only without keys. They
   expose counts and latencies, no content.
 - **Prompt injection is reduced, not solved.** Passages and the question sit

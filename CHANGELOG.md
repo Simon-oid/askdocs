@@ -4,6 +4,10 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- Access: with keys and a rate limit set, a wrong or missing key spends
+  from its address's bucket, so guessing keys is rate-limited too (it was
+  free: 401 came before the limiter). Keys are compared as SHA-256
+  digests, so the comparison time does not reveal a key's length.
 - `scripts/build_corpus.sh` updates the index in place (`--fresh` to
   rebuild): unchanged files are skipped, and a running service picks up
   the new index without a restart. Checked against a live crag-mcp; the

@@ -50,12 +50,13 @@ class ApiKeys:
         scheme, _, given = (authorization or "").partition(" ")
         if scheme.lower() != "bearer" or not given:
             return None
-        token = given.strip().encode()
-        # Compare against every key, so the time taken does not tell which
-        # prefix matched or how many keys there are.
+        # Compare fixed-length digests against every key: compare_digest on
+        # inputs of different length returns early, which would time the
+        # key's length; and looping over all keys hides which one matched.
+        token = hashlib.sha256(given.strip().encode()).digest()
         match = None
         for key in self.keys:
-            if hmac.compare_digest(token, key):
+            if hmac.compare_digest(token, hashlib.sha256(key).digest()):
                 match = key
         if match is None:
             return None

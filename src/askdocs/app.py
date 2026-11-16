@@ -204,13 +204,18 @@ def create_app(settings: Settings | None = None, *, retriever: Retriever | None 
 
     def client_of(request: Request) -> str:
         """The caller's name, or 401. Without keys, its address."""
+        addr = "addr:" + (request.client.host if request.client else "unknown")
         who = keys.identify(request.headers.get("authorization"))
         if who is None:
+            # Failed attempts spend from their address's bucket, so guessing
+            # keys is as rate-limited as answering.
+            wait = limiter.take("fail:" + addr)
+            if wait > 0:
+                raise HTTPException(429, "rate limit exceeded",
+                                    headers={"Retry-After": str(math.ceil(wait))})
             raise HTTPException(401, "missing or invalid API key",
                                 headers={"WWW-Authenticate": "Bearer"})
-        if not keys.enabled:
-            who = "addr:" + (request.client.host if request.client else "unknown")
-        return who
+        return who if keys.enabled else addr
     app.state.stats = stats = Stats()
 
     async def events(question: str, k: int, parent: Context) -> AsyncGenerator[PipelineEvent, None]:
