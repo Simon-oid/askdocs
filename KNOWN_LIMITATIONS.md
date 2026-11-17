@@ -21,16 +21,19 @@ Qwen2.5-3B-Instruct Q4_K_M) unless noted.
     poisoned passage with four content words is cited, not dropped;
   - the streamed tokens are the model's own; only `done.answer` is checked,
     so a client should replace the streamed text with it.
-- **Questions that need several documents: 0.30–0.60 key-fact recall** (5
-  cases, so a wide interval), against 0.85–0.92 for single-document ones.
-  It is the 3B combining passages, not retrieval: 90% of these cases' key
-  facts were in the passages it got (99% over all answerable cases). Per-
-  clause retrieval was tried and measured with no effect; a larger model is
-  the lever (gpt-oss-120b: 0.90 key facts overall).
+- **Questions that need several documents: 0.46 [0.35, 0.58] key-fact
+  recall** (13 cases), against 0.88 for single-document ones. Both stages
+  lose facts: the top 5 passages hold 0.73 of them, and the 3B uses part of
+  what it gets. Raising `top_k` to 10 brings the passages to 0.92 and the
+  answers to 0.65, but the 3B then refuses more (3 → 6 of 43 answerable)
+  and is less faithful (0.80 → 0.73); against top 5 nothing moves beyond the
+  noise, so 5 stays the default. Per-clause retrieval raised the passages
+  less (0.73 → 0.77) and was not kept. A larger model is the likely lever
+  (gpt-oss-120b: 0.90 key facts overall), not measured on these 13.
 - **The judge is itself a model.** On 25 sentences it agrees with independent
   grades at κ 0.80, with one error in each direction. The independent grades
   were written by a stronger model, not by a person.
-- **The eval set is small and from one corpus:** 45 questions over the
+- **The eval set is small and from one corpus:** 53 questions over the
   documentation of two projects, in English. One wrong answer moves a rate by
   two to three points, so every rate is reported with its interval.
 - **Answers vary between runs at temperature 0.** Two sets of four runs gave

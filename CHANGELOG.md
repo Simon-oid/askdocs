@@ -4,6 +4,14 @@ All notable changes to askdocs. Dates are ISO 8601.
 
 ## Unreleased
 
+- Eval: 8 more questions that need two documents (53 in all, 13 multi).
+  On them the top 5 passages hold only 0.73 of the key facts, so for
+  multi-document questions retrieval loses facts too, not only reading.
+  `top_k` 8 and 10 measured on the full set (`evals/results-topk8/`,
+  `evals/results-topk10/`): no gain beyond the noise and more wrong
+  refusals, so the default stays 5. New baseline in `evals/results/`; the
+  recall@5 and context_recall floors are lowered by the documented rule,
+  since the new cases are harder and retrieval has no run noise.
 - Access: with keys and a rate limit set, a wrong or missing key spends
   from its address's bucket, so guessing keys is rate-limited too (it was
   free: 401 came before the limiter). Keys are compared as SHA-256

@@ -5,10 +5,10 @@
       "min": 0.45
     },
     "recall@5": {
-      "min": 0.95
+      "min": 0.85
     },
     "context_recall": {
-      "min": 0.85
+      "min": 0.75
     },
     "key_facts": {
       "min": 0.65
@@ -50,6 +50,8 @@
     "correct_refusal": "n=10 with no failure observed: the bootstrap interval is degenerate ([1, 1]), so the rule would allow no slip at all; one is allowed",
     "uncited": "no answer without a citation in 4 runs with attribution: the interval is degenerate ([0, 0]), so the rule would allow none; 0.10 is kept (the 3B before attribution: 1 of 34)",
     "key_facts": "the rule on the 2026-11-15 baseline (0.77, the low end of the measured 0.77-0.87 spread) gives 0.55; the earlier 0.65 is kept, never loosened by a low draw",
-    "wrong_refusal": "likewise: the rule gives 0.20, the earlier 0.15 is kept"
+    "wrong_refusal": "likewise: the rule gives 0.20, the earlier 0.15 is kept",
+    "recall@5": "lowered from 0.95 by the rule on the 2026-11-17 baseline (0.92 [0.85, 0.98]): the 8 multi-document cases added then need two files each, and retrieval is deterministic (noise 0), so the drop is the new cases, not a draw",
+    "context_recall": "likewise: 0.85 [0.76, 0.93] on the same baseline gives 0.75, from 0.85"
   }
 }

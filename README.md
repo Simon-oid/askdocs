@@ -198,8 +198,8 @@ stdio, including a crash mid-session and the reconnect after it.
 
 ## Evaluation
 
-[`evals/cases.jsonl`](evals/cases.jsonl) holds 45 labelled questions about
-the demo corpus: 30 factual, 5 that need two sources, 6 in the corpus's
+[`evals/cases.jsonl`](evals/cases.jsonl) holds 53 labelled questions about
+the demo corpus: 30 factual, 13 that need two sources, 6 in the corpus's
 domain that it does not answer, 4 off-topic. Each answerable case lists the
 files the answer lives in and the key facts it must contain.
 
@@ -227,7 +227,7 @@ What is measured, and why apart:
   the model, so a retrieval miss is not blamed on generation.
 - **Key-fact recall**: does the answer contain the labelled facts? A refusal of
   an answerable question scores 0.
-- **Refusals**: right for the 10 unanswerable/off-topic cases, wrong for the 35
+- **Refusals**: right for the 10 unanswerable/off-topic cases, wrong for the 43
   others.
 - **Faithfulness**: the answer is split into sentences; for each, a judge model
   (Qwen2.5-7B, not the 3B that wrote the answer) is asked one yes/no question per
@@ -238,25 +238,42 @@ answering, top-k 5; bootstrap 95% intervals over cases):
 
 | Metric | Mean [95% CI] | n |
 |---|---|---|
-| Retrieval recall@1 / @3 / @5 | 0.61 / 0.94 / 0.99 | 35 |
-| Context recall (right file among the 5 passages the model got) | 0.94 [0.87, 1.00] | 35 |
-| Key-fact recall | 0.77 [0.63, 0.90] | 35 |
-| ... factual / multi-source | 0.85 / 0.30 [0.00, 0.70] | 30 / 5 |
-| Wrong refusals | 0.06 [0.00, 0.14] | 35 |
+| Retrieval recall@1 / @3 / @5 | 0.57 / 0.85 / 0.92 | 43 |
+| Context recall (right file among the 5 passages the model got) | 0.85 [0.76, 0.93] | 43 |
+| Key facts present in those passages | 0.92 [0.86, 0.97] | 43 |
+| Key-fact recall | 0.76 [0.65, 0.86] | 43 |
+| ... factual / multi-source | 0.88 / 0.46 [0.35, 0.58] | 30 / 13 |
+| Wrong refusals | 0.07 [0.00, 0.16] | 43 |
 | Correct refusals (unanswerable + off-topic) | 1.00 | 10 |
-| Faithfulness (judged sentences supported) | 0.82 [0.69, 0.92] | 33 |
-| Answers citing nothing | 0.00 | 33 |
+| Faithfulness (judged sentences supported) | 0.80 [0.70, 0.90] | 40 |
+| Answers citing nothing | 0.00 | 40 |
 
 What it says:
 
-- **Retrieval is not the bottleneck; reading is.** The right file is in the
-  top 5 for 34 of 35 questions, and **99% of the key facts are in the
-  passages the model gets, against 77% in its answers**. Of the 7 cases that
-  miss a fact, 6 had it in front of the model (the report says which). The
-  right file is first only 61% of the time, so the prompt has to make the
-  model read past source [1]. Searching each clause of a two-part question
-  separately (one more search per clause) was measured and changed nothing
-  on these 45 cases, so it was not kept.
+- **On single-document questions reading is the bottleneck; on
+  multi-document ones retrieval is too.** Over the first 35 answerable
+  questions, 99% of the key facts were in the passages and 77% in the
+  answers. That held because 30 of them need one file: on the 13 questions
+  that need two, the top 5 passages hold only **0.73 of the facts**, and the
+  answers 0.46. The right file is first only 57% of the time, so the prompt
+  has to make the model read past source [1].
+- **More passages bring the facts, and the 3B does not use them** (same 53
+  questions, [`results-topk8`](evals/results-topk8/report.md),
+  [`results-topk10`](evals/results-topk10/report.md)):
+
+  | top_k | facts in passages, multi | key facts, multi | key facts, all | wrong refusals | faithfulness | prompt tokens P50 |
+  |---|---|---|---|---|---|---|
+  | 5 (default) | 0.73 | 0.46 | 0.76 | 3 / 43 | 0.80 | 2002 |
+  | 8 | 0.81 | 0.54 | 0.81 | 6 / 43 | 0.83 | 3081 |
+  | 10 | 0.92 | 0.65 | 0.78 | 6 / 43 | 0.73 | 3766 |
+
+  At 10, 6 multi-source cases gain a fact and 3 lose one, each to a
+  refusal; the 3B refuses more with a longer prompt, and its faithfulness
+  drops. Against top 5 no metric moves beyond the run-to-run noise
+  (key facts +0.06 [−0.05, +0.17] at 8), while the prompt grows by half
+  and llama.cpp's `-c` must grow with it. So the default stays 5. Searching
+  each clause of a two-part question separately raised the facts in the
+  passages less (0.73 → 0.77), so it was not kept either.
 - **Faithfulness was the weak point, and most of it was attribution.** The two
   failure modes found reading the verdicts were citing a neighbouring passage
   instead of the one holding the fact, and copying a passage with no citation
