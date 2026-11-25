@@ -166,7 +166,8 @@ Each answer is one OpenTelemetry trace: `askdocs.answer` with `retrieval`
 finish reason, a `first_token` event), under FastAPI's own `POST /ask`
 span. Off by default; with no endpoint set the API is a no-op.
 
-Measured over the 45 eval questions, one at a time (P50 / P95):
+Measured on 2026-11-09 over the 45 eval questions the set had then, one at
+a time (P50 / P95):
 
 | Stage | ms |
 |---|---|
